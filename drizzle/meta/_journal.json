@@ -29,6 +29,13 @@
       "when": 1788287303852,
       "tag": "0003_facturation_par_contribuable",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789036841099,
+      "tag": "0004_e1_comptabilite_generale",
+      "breakpoints": true
     }
   ]
 }

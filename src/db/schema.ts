@@ -628,6 +628,461 @@ export const parametres = pgTable("parametres", {
 });
 
 // ---------------------------------------------------------------------------
+// COMPTABILITÉ GÉNÉRALE (E1) — tenue des livres des contribuables
+//
+// Tout ce domaine est préfixé `cpta_`. Le préfixe n'est pas cosmétique : il
+// sépare sans ambiguïté possible la comptabilité DU CONTRIBUABLE de la
+// facturation DU CABINET (`factures`, `facture_lignes`, `reglements`), qui sont
+// deux objets sans rapport — numérotation, TVA et comptes différents.
+//
+// Le contribuable joue ici le rôle de société : c'est lui qui porte le plan
+// comptable, les journaux, les exercices et les écritures.
+//
+// Les énumérations ci-dessous sont créées de zéro, ce que la production
+// autorise. Aucune énumération existante n'est modifiée : `ALTER TYPE` est
+// impossible sur ce serveur (voir docs/18-migration-production.md).
+// ---------------------------------------------------------------------------
+
+export const cptaStatutExerciceEnum = pgEnum("cpta_statut_exercice", [
+  "OUVERT",
+  "CLOS",
+  "VERROUILLE",
+]);
+
+/** Système comptable SYSCOHADA retenu pour l'exercice. */
+export const cptaSystemeEnum = pgEnum("cpta_systeme", [
+  "NORMAL",
+  "SMT", // Système minimal de trésorerie, réservé aux très petites entités.
+]);
+
+export const cptaTypeCompteEnum = pgEnum("cpta_type_compte", [
+  "ACTIF",
+  "PASSIF",
+  "CHARGE",
+  "PRODUIT",
+]);
+
+export const cptaTypeJournalEnum = pgEnum("cpta_type_journal", [
+  "ACHAT",
+  "VENTE",
+  "BANQUE",
+  "CAISSE",
+  "DIVERS",
+  "A_NOUVEAUX",
+]);
+
+export const cptaStatutEcritureEnum = pgEnum("cpta_statut_ecriture", [
+  "BROUILLON",
+  "VALIDEE",
+  "CONTREPASSEE",
+]);
+
+/**
+ * Module qui a produit l'écriture. Permet de remonter d'une ligne de grand
+ * livre jusqu'à la pièce d'origine, conjointement avec `origine_id`.
+ */
+export const cptaOrigineEnum = pgEnum("cpta_origine", [
+  "MANUELLE",
+  "A_NOUVEAUX",
+  "FACTURE_VENTE",
+  "FACTURE_ACHAT",
+  "REGLEMENT",
+  "PAIE",
+  "AMORTISSEMENT",
+  "STOCK",
+  "CLOTURE",
+]);
+
+export const cptaTypeTaxeEnum = pgEnum("cpta_type_taxe", [
+  "TVA_COLLECTEE",
+  "TVA_DEDUCTIBLE",
+  "RETENUE",
+  "ACOMPTE",
+]);
+
+/**
+ * Exercice comptable d'un contribuable. Un exercice `CLOS` n'accepte plus de
+ * saisie ; `VERROUILLE` interdit en plus toute réouverture par l'application.
+ */
+export const cptaExercices = pgTable(
+  "cpta_exercices",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    libelle: text("libelle").notNull(),
+    dateDebut: date("date_debut").notNull(),
+    dateFin: date("date_fin").notNull(),
+    systeme: cptaSystemeEnum("systeme").default("NORMAL").notNull(),
+    statut: cptaStatutExerciceEnum("statut").default("OUVERT").notNull(),
+    /** Exercice dont proviennent les à-nouveaux. */
+    exercicePrecedentId: integer("exercice_precedent_id").references(
+      (): AnyPgColumn => cptaExercices.id,
+      { onDelete: "set null" },
+    ),
+    clotureLe: timestamp("cloture_le"),
+    cloturePar: integer("cloture_par").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_exercices_ctb_libelle_unique").on(
+      t.contribuableId,
+      t.libelle,
+    ),
+    index("cpta_exercices_ctb_idx").on(t.contribuableId),
+    check(
+      "cpta_exercices_dates_check",
+      sql`${t.dateFin} > ${t.dateDebut}`,
+    ),
+  ],
+);
+
+/**
+ * Plan comptable du contribuable. Une copie du plan SYSCOHADA révisé de
+ * référence est déposée à la création, puis personnalisable.
+ */
+export const cptaComptes = pgTable(
+  "cpta_comptes",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    numero: varchar("numero", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    /** Classe SYSCOHADA, de 1 à 9. */
+    classe: integer("classe").notNull(),
+    type: cptaTypeCompteEnum("type").notNull(),
+    /** Compte collectif de tiers (401, 411…) : impose la saisie d'un tiers. */
+    collectif: boolean("collectif").default(false).notNull(),
+    lettrable: boolean("lettrable").default(false).notNull(),
+    /** Compte de banque, susceptible d'être rapproché d'un relevé. */
+    rapprochable: boolean("rapprochable").default(false).notNull(),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_comptes_ctb_numero_unique").on(t.contribuableId, t.numero),
+    index("cpta_comptes_classe_idx").on(t.contribuableId, t.classe),
+    check(
+      "cpta_comptes_classe_check",
+      sql`${t.classe} >= 1 AND ${t.classe} <= 9`,
+    ),
+  ],
+);
+
+/** Journaux de saisie (achats, ventes, banque, caisse, OD, à-nouveaux). */
+export const cptaJournaux = pgTable(
+  "cpta_journaux",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 10 }).notNull(),
+    libelle: text("libelle").notNull(),
+    type: cptaTypeJournalEnum("type").notNull(),
+    /** Compte de contrepartie automatique, pour la banque et la caisse. */
+    compteContrepartieId: integer("compte_contrepartie_id").references(
+      () => cptaComptes.id,
+      { onDelete: "set null" },
+    ),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_journaux_ctb_code_unique").on(t.contribuableId, t.code),
+  ],
+);
+
+/**
+ * Compteur de numérotation des pièces, par journal et par exercice.
+ *
+ * Volontairement une table, et non une séquence PostgreSQL : une séquence
+ * consomme son numéro même lorsque la transaction est annulée, ce qui créerait
+ * des trous. Or la numérotation comptable doit être continue. Le compteur est
+ * donc incrémenté sous verrou, dans la transaction de validation.
+ */
+export const cptaSequences = pgTable(
+  "cpta_sequences",
+  {
+    id: serial("id").primaryKey(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "cascade" })
+      .notNull(),
+    journalId: integer("journal_id")
+      .references(() => cptaJournaux.id, { onDelete: "cascade" })
+      .notNull(),
+    /** Préfixe apposé au numéro, ex. "VE2026-". */
+    prefixe: varchar("prefixe", { length: 20 }).default("").notNull(),
+    dernierNumero: integer("dernier_numero").default(0).notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_sequences_exercice_journal_unique").on(
+      t.exerciceId,
+      t.journalId,
+    ),
+  ],
+);
+
+/**
+ * Clients, fournisseurs et salariés **du contribuable** — à ne pas confondre
+ * avec les contribuables eux-mêmes, qui sont les clients du cabinet.
+ */
+export const cptaTiers = pgTable(
+  "cpta_tiers",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 30 }).notNull(),
+    raisonSociale: text("raison_sociale").notNull(),
+    /** Natures cumulables : ["CLIENT"], ["FOURNISSEUR"], ou les deux. */
+    types: jsonb("types").$type<string[]>().default([]).notNull(),
+    niu: varchar("niu", { length: 30 }),
+    /** Compte auxiliaire de rattachement (411…, 401…). */
+    compteId: integer("compte_id").references(() => cptaComptes.id, {
+      onDelete: "set null",
+    }),
+    adresse: text("adresse"),
+    telephone: text("telephone"),
+    email: text("email"),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_tiers_ctb_code_unique").on(t.contribuableId, t.code),
+    index("cpta_tiers_niu_idx").on(t.niu),
+  ],
+);
+
+/**
+ * Taux de TVA, retenues et acomptes, **datés**.
+ *
+ * Un recalcul portant sur une période antérieure doit retenir le taux en
+ * vigueur à la date de l'opération, et non le plus récent : c'est la raison
+ * d'être de `valide_du` / `valide_au`. Aucun taux ne doit être écrit en dur
+ * dans le code.
+ */
+export const cptaTaxes = pgTable(
+  "cpta_taxes",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    /** Taux en pourcentage, ex. 19.2500 pour la TVA camerounaise. */
+    taux: numeric("taux", { precision: 7, scale: 4 }).notNull(),
+    type: cptaTypeTaxeEnum("type").notNull(),
+    compteId: integer("compte_id").references(() => cptaComptes.id, {
+      onDelete: "set null",
+    }),
+    valideDu: date("valide_du").notNull(),
+    /** NULL = toujours en vigueur. */
+    valideAu: date("valide_au"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("cpta_taxes_ctb_code_idx").on(t.contribuableId, t.code),
+    check("cpta_taxes_taux_check", sql`${t.taux} >= 0`),
+    check(
+      "cpta_taxes_periode_check",
+      sql`${t.valideAu} IS NULL OR ${t.valideAu} >= ${t.valideDu}`,
+    ),
+  ],
+);
+
+/**
+ * En-tête de pièce comptable.
+ *
+ * Une écriture `VALIDEE` est immuable : elle ne se modifie ni ne se supprime,
+ * elle se contre-passe. Le numéro de pièce n'est attribué qu'à la validation,
+ * pour que l'abandon d'un brouillon ne consomme aucun numéro.
+ */
+export const cptaEcritures = pgTable(
+  "cpta_ecritures",
+  {
+    id: serial("id").primaryKey(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "restrict" })
+      .notNull(),
+    journalId: integer("journal_id")
+      .references(() => cptaJournaux.id, { onDelete: "restrict" })
+      .notNull(),
+    /** Attribué à la validation ; NULL tant que l'écriture est au brouillon. */
+    numeroPiece: varchar("numero_piece", { length: 40 }),
+    dateEcriture: date("date_ecriture").notNull(),
+    libelle: text("libelle").notNull(),
+    /** Référence externe : n° de facture du tiers, de chèque, de bordereau… */
+    reference: text("reference"),
+    statut: cptaStatutEcritureEnum("statut").default("BROUILLON").notNull(),
+    origine: cptaOrigineEnum("origine").default("MANUELLE").notNull(),
+    /** Identifiant de la pièce d'origine, dans le module désigné par `origine`. */
+    origineId: integer("origine_id"),
+    /** Écriture contre-passée par celle-ci. */
+    contrepasseEcritureId: integer("contrepasse_ecriture_id").references(
+      (): AnyPgColumn => cptaEcritures.id,
+      { onDelete: "set null" },
+    ),
+    /** Justificatif rattaché, dans la GED existante. */
+    documentId: integer("document_id").references(() => documents.id, {
+      onDelete: "set null",
+    }),
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    validePar: integer("valide_par").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    valideLe: timestamp("valide_le"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_ecritures_exercice_numero_unique").on(
+      t.exerciceId,
+      t.numeroPiece,
+    ),
+    index("cpta_ecritures_exercice_date_idx").on(t.exerciceId, t.dateEcriture),
+    index("cpta_ecritures_journal_idx").on(t.journalId),
+    index("cpta_ecritures_origine_idx").on(t.origine, t.origineId),
+    // Une écriture validée porte toujours un numéro de pièce et une date de
+    // validation ; un brouillon n'en a jamais.
+    check(
+      "cpta_ecritures_validation_check",
+      sql`(${t.statut} = 'BROUILLON' AND ${t.numeroPiece} IS NULL AND ${t.valideLe} IS NULL)
+          OR (${t.statut} <> 'BROUILLON' AND ${t.numeroPiece} IS NOT NULL AND ${t.valideLe} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/**
+ * Ligne d'écriture. L'équilibre `Σ débit = Σ crédit` est vérifié à la
+ * validation ; la contrainte ci-dessous garantit au moins qu'une ligne porte un
+ * sens et un seul.
+ */
+export const cptaLignesEcriture = pgTable(
+  "cpta_lignes_ecriture",
+  {
+    id: serial("id").primaryKey(),
+    ecritureId: integer("ecriture_id")
+      .references(() => cptaEcritures.id, { onDelete: "cascade" })
+      .notNull(),
+    ordre: integer("ordre").default(0).notNull(),
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "restrict" })
+      .notNull(),
+    /** Obligatoire dès lors que le compte est collectif. */
+    tiersId: integer("tiers_id").references(() => cptaTiers.id, {
+      onDelete: "restrict",
+    }),
+    libelle: text("libelle"),
+    debit: numeric("debit", { precision: 14, scale: 2 }).default("0").notNull(),
+    credit: numeric("credit", { precision: 14, scale: 2 })
+      .default("0")
+      .notNull(),
+    /** Code de lettrage (A, B, AA…) ; NULL tant que la ligne n'est pas lettrée. */
+    lettrage: varchar("lettrage", { length: 10 }),
+    /** Échéance de règlement, qui alimente la balance âgée. */
+    dateEcheance: date("date_echeance"),
+  },
+  (t) => [
+    index("cpta_lignes_ecriture_idx").on(t.ecritureId),
+    index("cpta_lignes_compte_idx").on(t.compteId),
+    index("cpta_lignes_tiers_idx").on(t.tiersId),
+    index("cpta_lignes_lettrage_idx").on(t.compteId, t.lettrage),
+    // Un mouvement est soit un débit, soit un crédit — jamais les deux, jamais
+    // aucun des deux, jamais négatif.
+    check(
+      "cpta_lignes_sens_check",
+      sql`${t.debit} >= 0 AND ${t.credit} >= 0 AND (${t.debit} = 0) <> (${t.credit} = 0)`,
+    ),
+  ],
+);
+
+/** En-tête de lettrage : regroupe les lignes soldées d'un compte de tiers. */
+export const cptaLettrages = pgTable(
+  "cpta_lettrages",
+  {
+    id: serial("id").primaryKey(),
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "cascade" })
+      .notNull(),
+    tiersId: integer("tiers_id").references(() => cptaTiers.id, {
+      onDelete: "set null",
+    }),
+    code: varchar("code", { length: 10 }).notNull(),
+    dateLettrage: date("date_lettrage").notNull(),
+    montant: numeric("montant", { precision: 14, scale: 2 }).notNull(),
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("cpta_lettrages_compte_code_unique").on(t.compteId, t.code)],
+);
+
+/** Rapprochement d'un compte de banque avec un relevé. */
+export const cptaRapprochements = pgTable(
+  "cpta_rapprochements",
+  {
+    id: serial("id").primaryKey(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "cascade" })
+      .notNull(),
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "restrict" })
+      .notNull(),
+    dateRapprochement: date("date_rapprochement").notNull(),
+    soldeReleve: numeric("solde_releve", { precision: 14, scale: 2 }).notNull(),
+    soldeComptable: numeric("solde_comptable", {
+      precision: 14,
+      scale: 2,
+    }).notNull(),
+    /** Différence subsistant après pointage ; nulle, le rapprochement est juste. */
+    ecart: numeric("ecart", { precision: 14, scale: 2 }).default("0").notNull(),
+    cloture: boolean("cloture").default(false).notNull(),
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("cpta_rapprochements_compte_idx").on(t.compteId, t.dateRapprochement),
+  ],
+);
+
+/** Ligne pointée d'un rapprochement bancaire. */
+export const cptaRapprochementLignes = pgTable(
+  "cpta_rapprochement_lignes",
+  {
+    id: serial("id").primaryKey(),
+    rapprochementId: integer("rapprochement_id")
+      .references(() => cptaRapprochements.id, { onDelete: "cascade" })
+      .notNull(),
+    ligneEcritureId: integer("ligne_ecriture_id")
+      .references(() => cptaLignesEcriture.id, { onDelete: "cascade" })
+      .notNull(),
+    pointeLe: timestamp("pointe_le").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_rapprochement_lignes_unique").on(
+      t.rapprochementId,
+      t.ligneEcritureId,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations (Drizzle Query API)
 // ---------------------------------------------------------------------------
 
@@ -753,3 +1208,168 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 export const auditLogRelations = relations(auditLog, ({ one }) => ({
   user: one(users, { fields: [auditLog.userId], references: [users.id] }),
 }));
+
+// ---------------------------------------------------------------------------
+// Relations — comptabilité générale (E1)
+// ---------------------------------------------------------------------------
+
+export const cptaExercicesRelations = relations(
+  cptaExercices,
+  ({ one, many }) => ({
+    contribuable: one(contribuables, {
+      fields: [cptaExercices.contribuableId],
+      references: [contribuables.id],
+    }),
+    exercicePrecedent: one(cptaExercices, {
+      fields: [cptaExercices.exercicePrecedentId],
+      references: [cptaExercices.id],
+      relationName: "exercicePrecedent",
+    }),
+    ecritures: many(cptaEcritures),
+    sequences: many(cptaSequences),
+  }),
+);
+
+export const cptaComptesRelations = relations(cptaComptes, ({ one, many }) => ({
+  contribuable: one(contribuables, {
+    fields: [cptaComptes.contribuableId],
+    references: [contribuables.id],
+  }),
+  lignes: many(cptaLignesEcriture),
+  tiers: many(cptaTiers),
+}));
+
+export const cptaJournauxRelations = relations(
+  cptaJournaux,
+  ({ one, many }) => ({
+    contribuable: one(contribuables, {
+      fields: [cptaJournaux.contribuableId],
+      references: [contribuables.id],
+    }),
+    compteContrepartie: one(cptaComptes, {
+      fields: [cptaJournaux.compteContrepartieId],
+      references: [cptaComptes.id],
+    }),
+    ecritures: many(cptaEcritures),
+  }),
+);
+
+export const cptaSequencesRelations = relations(cptaSequences, ({ one }) => ({
+  exercice: one(cptaExercices, {
+    fields: [cptaSequences.exerciceId],
+    references: [cptaExercices.id],
+  }),
+  journal: one(cptaJournaux, {
+    fields: [cptaSequences.journalId],
+    references: [cptaJournaux.id],
+  }),
+}));
+
+export const cptaTiersRelations = relations(cptaTiers, ({ one, many }) => ({
+  contribuable: one(contribuables, {
+    fields: [cptaTiers.contribuableId],
+    references: [contribuables.id],
+  }),
+  compte: one(cptaComptes, {
+    fields: [cptaTiers.compteId],
+    references: [cptaComptes.id],
+  }),
+  lignes: many(cptaLignesEcriture),
+}));
+
+export const cptaTaxesRelations = relations(cptaTaxes, ({ one }) => ({
+  contribuable: one(contribuables, {
+    fields: [cptaTaxes.contribuableId],
+    references: [contribuables.id],
+  }),
+  compte: one(cptaComptes, {
+    fields: [cptaTaxes.compteId],
+    references: [cptaComptes.id],
+  }),
+}));
+
+export const cptaEcrituresRelations = relations(
+  cptaEcritures,
+  ({ one, many }) => ({
+    exercice: one(cptaExercices, {
+      fields: [cptaEcritures.exerciceId],
+      references: [cptaExercices.id],
+    }),
+    journal: one(cptaJournaux, {
+      fields: [cptaEcritures.journalId],
+      references: [cptaJournaux.id],
+    }),
+    contrepasse: one(cptaEcritures, {
+      fields: [cptaEcritures.contrepasseEcritureId],
+      references: [cptaEcritures.id],
+      relationName: "contrepasse",
+    }),
+    justificatif: one(documents, {
+      fields: [cptaEcritures.documentId],
+      references: [documents.id],
+    }),
+    createur: one(users, {
+      fields: [cptaEcritures.createdBy],
+      references: [users.id],
+    }),
+    lignes: many(cptaLignesEcriture),
+  }),
+);
+
+export const cptaLignesEcritureRelations = relations(
+  cptaLignesEcriture,
+  ({ one }) => ({
+    ecriture: one(cptaEcritures, {
+      fields: [cptaLignesEcriture.ecritureId],
+      references: [cptaEcritures.id],
+    }),
+    compte: one(cptaComptes, {
+      fields: [cptaLignesEcriture.compteId],
+      references: [cptaComptes.id],
+    }),
+    tiers: one(cptaTiers, {
+      fields: [cptaLignesEcriture.tiersId],
+      references: [cptaTiers.id],
+    }),
+  }),
+);
+
+export const cptaLettragesRelations = relations(cptaLettrages, ({ one }) => ({
+  compte: one(cptaComptes, {
+    fields: [cptaLettrages.compteId],
+    references: [cptaComptes.id],
+  }),
+  tiers: one(cptaTiers, {
+    fields: [cptaLettrages.tiersId],
+    references: [cptaTiers.id],
+  }),
+}));
+
+export const cptaRapprochementsRelations = relations(
+  cptaRapprochements,
+  ({ one, many }) => ({
+    exercice: one(cptaExercices, {
+      fields: [cptaRapprochements.exerciceId],
+      references: [cptaExercices.id],
+    }),
+    compte: one(cptaComptes, {
+      fields: [cptaRapprochements.compteId],
+      references: [cptaComptes.id],
+    }),
+    lignes: many(cptaRapprochementLignes),
+  }),
+);
+
+export const cptaRapprochementLignesRelations = relations(
+  cptaRapprochementLignes,
+  ({ one }) => ({
+    rapprochement: one(cptaRapprochements, {
+      fields: [cptaRapprochementLignes.rapprochementId],
+      references: [cptaRapprochements.id],
+    }),
+    ligneEcriture: one(cptaLignesEcriture, {
+      fields: [cptaRapprochementLignes.ligneEcritureId],
+      references: [cptaLignesEcriture.id],
+    }),
+  }),
+);
