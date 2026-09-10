@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/* Charte LaMethode — tokens sémantiques (clair / sombre)             */
+/* Vert #59B233 · Encre #111827                                        */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: #f6f8fb;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
+  --border: #e3e9f0;
+  --input: #cbd5e1;
+  --ring: #59b233;
+  --primary: #59b233;
+  --primary-hover: #4a9a2a;
+  --primary-foreground: #ffffff;
+  --ink: #111827;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+  --success: #059669;
+  --radius: 0.7rem;
+}
+
+.dark {
+  --background: #0a0e17;
+  --foreground: #e6eaf1;
+  --card: #111827;
+  --card-foreground: #e6eaf1;
+  --muted: #1a2233;
+  --muted-foreground: #94a3b8;
+  --border: #1f2a3d;
+  --input: #263248;
+  --ring: #6cc047;
+  --primary: #59b233;
+  --primary-hover: #6cc047;
+  --primary-foreground: #06210b;
+  --ink: #e6eaf1;
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --success: #34d399;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ink: var(--ink);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-success: var(--success);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.2rem);
+  --radius-sm: calc(var(--radius) - 0.35rem);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Barre de défilement discrète */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+  background-clip: padding-box;
+}

@@ -1,0 +1,31 @@
+# Dépendances
+node_modules/
+
+# Build Next.js
+.next/
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Secrets — ne doivent JAMAIS entrer dans l'historique.
+# Seuls les fichiers .env.example sont versionnés.
+.env
+.env.local
+.env.production
+.env*.local
+
+# Documents des contribuables : données clients confidentielles, pas du code.
+storage/
+
+# Artefacts de déploiement
+*.zip
+*.tar.gz
+
+# Divers
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+coverage/
+.vscode/
+.idea/
