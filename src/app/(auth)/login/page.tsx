@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { COMPTES_DEMO, DEMO_PASSWORD } from "@/lib/demo-accounts";
 
 function LoginForm() {
   const router = useRouter();
@@ -115,16 +116,29 @@ function LoginForm() {
             </Button>
           </form>
 
-          <div className="mt-6 rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">Comptes de démonstration</p>
-            <p className="mt-1">
-              admin@lamethode.cm · nadege@lamethode.cm · yannick@lamethode.cm
-            </p>
-            <p>
-              Mot de passe :{" "}
-              <code className="rounded bg-card px-1 py-0.5">Lamethode2026!</code>
-            </p>
-          </div>
+          {/*
+            L'encart n'est rendu qu'en développement. Il affiche des
+            identifiants valides et le mot de passe qui va avec : sur la page de
+            connexion publique de la production, ce serait donner à quiconque de
+            quoi tenter sa chance. `NODE_ENV` est figé à la compilation, la
+            portion n'est donc même pas envoyée au navigateur en production.
+          */}
+          {process.env.NODE_ENV !== "production" && (
+            <div className="mt-6 rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">
+                Comptes de démonstration
+              </p>
+              <p className="mt-1">
+                {COMPTES_DEMO.map((c) => c.email).join(" · ")}
+              </p>
+              <p>
+                Mot de passe :{" "}
+                <code className="rounded bg-card px-1 py-0.5">
+                  {DEMO_PASSWORD}
+                </code>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

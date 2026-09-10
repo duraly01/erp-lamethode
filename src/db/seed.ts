@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { db, pool } from "./index";
+import { COMPTES_DEMO, DEMO_PASSWORD } from "../lib/demo-accounts";
 import {
   roles,
   users,
@@ -64,8 +65,9 @@ const PERMS_LECTURE: RolePermission[] = [
 
 const ANNEE = 2026;
 
-/** Mot de passe commun des comptes de démonstration (haché à l'exécution). */
-const DEMO_PASSWORD = "Lamethode2026!";
+// Les comptes de démonstration et leur mot de passe sont déclarés dans
+// `src/lib/demo-accounts.ts`, d'où la page de connexion les lit également :
+// une seule source, pour que les deux ne divergent plus.
 
 async function purge() {
   // Ordre enfants -> parents (respecte les clés étrangères).
@@ -99,14 +101,21 @@ async function main() {
 
   // --- Utilisateurs --------------------------------------------------------
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+  const roleParNom = new Map(
+    [rAdmin, rManager, rCollab, rLecture].map((r) => [r.nom, r.id]),
+  );
+
   const [uAdmin, uManager, uCollab1, uCollab2] = await db
     .insert(users)
-    .values([
-      { nom: "Dominique Foudé", email: "foude.dominique@gmail.com", telephone: "+237699591975", passwordHash, roleId: rAdmin.id },
-      { nom: "Nadège Manager", email: "nadege@lamethode.cm", passwordHash, roleId: rManager.id },
-      { nom: "Yannick Collab", email: "yannick@lamethode.cm", passwordHash, roleId: rCollab.id },
-      { nom: "Aïcha Collab", email: "aicha@lamethode.cm", passwordHash, roleId: rCollab.id },
-    ])
+    .values(
+      COMPTES_DEMO.map((c) => ({
+        nom: c.nom,
+        email: c.email,
+        telephone: c.telephone ?? null,
+        passwordHash,
+        roleId: roleParNom.get(c.role) ?? null,
+      })),
+    )
     .returning();
 
   // --- Paramètres du cabinet ----------------------------------------------
