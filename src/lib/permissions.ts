@@ -55,6 +55,14 @@ export const RESSOURCES: {
     description: "Factures d'honoraires et règlements",
   },
   {
+    cle: "comptabilite",
+    label: "Comptabilité générale",
+    description:
+      "Tenue des livres des contribuables. Consulter : balance et grand livre. " +
+      "Créer : saisir un brouillon. Modifier : valider une écriture, lettrer. " +
+      "Supprimer : jeter un brouillon, contre-passer une écriture validée.",
+  },
+  {
     cle: "analytics",
     label: "Analytics",
     description: "Tableaux de bord et statistiques",
