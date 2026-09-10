@@ -22,7 +22,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "automations": "tsx src/scripts/automations.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:comptabilite": "tsx --tsconfig tsconfig.scripts.json src/scripts/verify-comptabilite.ts",
+    "verify:e1": "npm run db:migrate:node && npm run verify:comptabilite"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

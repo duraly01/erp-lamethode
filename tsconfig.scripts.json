@@ -1,0 +1,19 @@
+{
+  // ---------------------------------------------------------------------------
+  // Configuration réservée aux scripts lancés hors de Next.js (tsx).
+  //
+  // Les services du serveur importent « server-only », un module marqueur que
+  // Next résout lui-même à la compilation mais qui n'existe pas comme paquet
+  // installé : hors de Next, l'import échoue. On le fait pointer ici vers le
+  // module vide fourni par Next — celui-là même qu'il utilise en contexte
+  // serveur — de sorte qu'un script puisse importer les services sans que la
+  // configuration de l'application soit modifiée.
+  // ---------------------------------------------------------------------------
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "server-only": ["./node_modules/next/dist/compiled/server-only/empty.js"]
+    }
+  }
+}
