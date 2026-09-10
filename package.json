@@ -24,7 +24,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:comptabilite": "tsx --tsconfig tsconfig.scripts.json src/scripts/verify-comptabilite.ts",
-    "verify:e1": "npm run db:migrate:node && npm run verify:comptabilite"
+    "verify:e1": "npm run db:migrate:local && npm run verify:comptabilite",
+    "db:migrate:local": "node scripts/migrate-local.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

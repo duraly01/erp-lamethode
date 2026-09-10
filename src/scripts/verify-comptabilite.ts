@@ -64,20 +64,61 @@ function egal<T>(libelle: string, obtenu: T, attendu: T) {
   );
 }
 
-/** Exécute une opération censée échouer, et rend le code d'erreur obtenu. */
+/**
+ * Exécute une opération censée échouer, et rend le code d'erreur obtenu.
+ *
+ * Drizzle enveloppe l'erreur PostgreSQL dans une `DrizzleQueryError` : le code
+ * SQLSTATE ne se trouve pas sur l'erreur reçue mais plus bas dans la chaîne des
+ * `cause`. On la remonte, comme le fait `withApi` côté API.
+ */
 async function attendreRefus(fn: () => Promise<unknown>): Promise<string> {
   try {
     await fn();
     return "AUCUNE_ERREUR";
   } catch (e) {
     if (e instanceof HttpError) return e.code;
-    const pg = e as { code?: string };
-    return pg.code ?? "INCONNUE";
+
+    let cur: unknown = e;
+    for (let i = 0; i < 5 && cur; i++) {
+      const code = (cur as { code?: unknown }).code;
+      if (typeof code === "string") return code;
+      cur = (cur as { cause?: unknown }).cause;
+    }
+    return "INCONNUE";
   }
+}
+
+/**
+ * Garde-fou : ce banc crée et supprime des données. Il ne doit jamais
+ * s'exécuter ailleurs que sur une base locale jetable.
+ *
+ * Le `.env` du projet contient aussi `DATABASE_URL_MIGRATION`, qui vise la
+ * production : la confusion est trop facile pour reposer sur la vigilance.
+ */
+function assertBaseLocale() {
+  const url = process.env.DATABASE_URL ?? "";
+  let hote = "";
+  try {
+    hote = new URL(url).hostname;
+  } catch {
+    hote = "";
+  }
+
+  if (!["localhost", "127.0.0.1", "::1", "db"].includes(hote)) {
+    console.error(
+      `\nRefus d'exécution : DATABASE_URL vise « ${hote || "?"} », qui n'est pas une base locale.`,
+    );
+    console.error(
+      "Ce banc crée puis supprime des données ; il ne tourne que sur une base jetable.\n",
+    );
+    process.exit(1);
+  }
+  console.log(`Base cible : ${hote} (locale)`);
 }
 
 async function main() {
   console.log("\n=== Vérification de la comptabilité générale ===\n");
+  assertBaseLocale();
 
   await nettoyer(); // au cas où une exécution précédente aurait échoué
 
