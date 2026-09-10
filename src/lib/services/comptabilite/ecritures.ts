@@ -494,8 +494,22 @@ export async function contrepasserEcriture(
   });
 }
 
+/**
+ * Date du jour au Cameroun, en « AAAA-MM-JJ ».
+ *
+ * `toISOString()` donne la date **UTC** : entre 23 h et minuit à Douala, la
+ * contre-passation se serait retrouvée datée de la veille — une date d'écriture
+ * n'est pas un détail d'affichage, elle situe l'opération dans l'exercice.
+ * Le fuseau est nommé explicitement plutôt que laissé à la configuration du
+ * serveur, l'hébergement mutualisé étant réglé sur UTC.
+ */
 function aujourdhuiIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Douala",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 // ---------------------------------------------------------------------------

@@ -122,3 +122,21 @@ export const balanceQuerySchema = z.object({
 export const grandLivreQuerySchema = balanceQuerySchema.extend({
   compteId: idPositif.optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Tiers du contribuable
+// ---------------------------------------------------------------------------
+
+export const tiersCreateSchema = z.object({
+  contribuableId: idPositif,
+  code: z.string().trim().min(1).max(30),
+  raisonSociale: z.string().trim().min(1).max(200),
+  types: z
+    .array(z.enum(["CLIENT", "FOURNISSEUR", "SALARIE", "AUTRE"]))
+    .min(1)
+    .default(["CLIENT"]),
+  niu: optionalText(30),
+  compteId: idPositif.nullable().optional(),
+  telephone: optionalText(40),
+  email: optionalText(200),
+});

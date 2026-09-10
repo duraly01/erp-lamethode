@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, gte, lte, ne } from "drizzle-orm";
+import { and, asc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   cptaComptes,
@@ -108,7 +108,11 @@ export async function getGrandLivre(
       dateEcriture: cptaEcritures.dateEcriture,
       numeroPiece: cptaEcritures.numeroPiece,
       journalCode: cptaJournaux.code,
-      libelle: cptaLignesEcriture.libelle,
+      // Le libellé de ligne est facultatif : la plupart des saisies n'en
+      // portent qu'un seul, au niveau de l'écriture. Sans ce repli, le grand
+      // livre afficherait une colonne « Libellé » vide, alors que c'est
+      // justement ce qui permet de reconnaître une opération.
+      libelle: sql<string>`coalesce(${cptaLignesEcriture.libelle}, ${cptaEcritures.libelle})`,
       tiersLibelle: cptaTiers.raisonSociale,
       lettrage: cptaLignesEcriture.lettrage,
       debit: cptaLignesEcriture.debit,
