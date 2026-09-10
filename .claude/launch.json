@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "erp-dev",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "node", "scripts/dev-server.mjs"],
+      "port": 3000
+    }
+  ]
+}
