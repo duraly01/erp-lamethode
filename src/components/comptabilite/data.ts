@@ -211,6 +211,8 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-rapprochements",
   "cpta-rapprochement",
   "cpta-postes-tiers",
+  "cpta-pieces",
+  "cpta-piece",
 ];
 
 export type Tiers = {
@@ -619,5 +621,66 @@ export function usePostesOuvertsTiers(tiersId?: number) {
     queryKey: ["cpta-postes-tiers", tiersId],
     enabled: !!tiersId,
     queryFn: () => apiGet<PosteOuvertTiers[]>(`/api/comptabilite/tiers/${tiersId}/postes-ouverts`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pièces persistées (E3)
+// ---------------------------------------------------------------------------
+
+export type TypePiece = "FACTURE_VENTE" | "FACTURE_ACHAT";
+export type StatutComptable = "NON_COMPTABILISEE" | "BROUILLON" | "VALIDEE" | "CONTREPASSEE";
+export type StatutReglement = "SANS_OBJET" | "EN_ATTENTE" | "EN_RETARD" | "REGLEE";
+
+export type Piece = {
+  id: number;
+  exerciceId: number;
+  type: TypePiece;
+  reference: string | null;
+  tiersId: number;
+  tiers: { code: string; raisonSociale: string };
+  datePiece: string;
+  dateEcheance: string | null;
+  totalHt: string;
+  totalTva: string;
+  totalTtc: string;
+  ecritureId: number | null;
+  numeroPiece: string | null;
+  notes: string | null;
+  statutComptable: StatutComptable;
+  statutReglement: StatutReglement;
+};
+
+export type LignePiece = {
+  id: number;
+  ordre: number;
+  compteId: number;
+  compteNumero: string;
+  compteLibelle: string;
+  libelle: string | null;
+  montantHt: string;
+  taxeId: number | null;
+  taxeLibelle: string | null;
+  taux: string | null;
+};
+
+export type PieceDetail = Piece & { lignes: LignePiece[] };
+
+export function usePieces(exerciceId?: number, filtre?: { type?: TypePiece; tiersId?: number }) {
+  return useQuery({
+    queryKey: ["cpta-pieces", exerciceId, filtre?.type ?? null, filtre?.tiersId ?? null],
+    enabled: !!exerciceId,
+    queryFn: () =>
+      apiGet<Piece[]>(
+        `/api/comptabilite/pieces${qs({ exerciceId, type: filtre?.type, tiersId: filtre?.tiersId })}`,
+      ),
+  });
+}
+
+export function usePiece(id?: number) {
+  return useQuery({
+    queryKey: ["cpta-piece", id],
+    enabled: !!id,
+    queryFn: () => apiGet<PieceDetail>(`/api/comptabilite/pieces/${id}`),
   });
 }

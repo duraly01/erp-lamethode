@@ -31,7 +31,7 @@ import {
   PlanComptablePanel,
 } from "./RestitutionsPanels";
 import { LiassePanel } from "./LiassePanel";
-import { PiecesPanel } from "./PiecesPanel";
+import { SaisieAssisteePanel } from "./SaisieAssisteePanel";
 import { RapprochementPanel } from "./RapprochementPanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
@@ -283,7 +283,7 @@ export function ComptabiliteClient() {
             />
           )}
           {onglet === "pieces" && (
-            <PiecesPanel
+            <SaisieAssisteePanel
               exercice={exercice}
               comptes={comptes ?? []}
               journaux={journaux ?? []}

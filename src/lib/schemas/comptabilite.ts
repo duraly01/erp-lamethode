@@ -255,3 +255,9 @@ export const pointageSchema = z.object({
   ligneIds: z.array(idPositif).min(1).max(500),
   pointer: z.boolean(),
 });
+
+export const piecesQuerySchema = z.object({
+  exerciceId: idPositif,
+  type: z.enum(["FACTURE_VENTE", "FACTURE_ACHAT"]).optional(),
+  tiersId: idPositif.optional(),
+});

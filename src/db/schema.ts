@@ -1083,6 +1083,83 @@ export const cptaRapprochementLignes = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Pièces du contribuable (E3) — factures de vente et d'achat
+//
+// Une facture n'est pas seulement son écriture : elle a des lignes, une
+// échéance, un règlement à suivre, et elle se relit après coup. L'écriture,
+// elle, se retrouve par `origine` + `origine_id` — le lien est dans les deux
+// sens.
+//
+// Aucun statut n'est stocké ici : celui de la comptabilisation se lit sur
+// l'écriture liée, celui du règlement sur le lettrage de la ligne du tiers.
+// Un statut recopié finirait par diverger de ce qu'il résume.
+// ---------------------------------------------------------------------------
+
+export const cptaTypePieceEnum = pgEnum("cpta_type_piece", [
+  "FACTURE_VENTE",
+  "FACTURE_ACHAT",
+]);
+
+export const cptaPieces = pgTable(
+  "cpta_pieces",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "restrict" })
+      .notNull(),
+    type: cptaTypePieceEnum("type").notNull(),
+    /** Numéro de la facture, tel qu'il figure sur le document. */
+    reference: varchar("reference", { length: 120 }),
+    tiersId: integer("tiers_id")
+      .references(() => cptaTiers.id, { onDelete: "restrict" })
+      .notNull(),
+    datePiece: date("date_piece").notNull(),
+    dateEcheance: date("date_echeance"),
+    totalHt: numeric("total_ht", { precision: 14, scale: 2 }).notNull(),
+    totalTva: numeric("total_tva", { precision: 14, scale: 2 }).notNull(),
+    totalTtc: numeric("total_ttc", { precision: 14, scale: 2 }).notNull(),
+    /** Écriture générée. Nulle si elle a été supprimée au brouillon : la pièce reste, à recomptabiliser. */
+    ecritureId: integer("ecriture_id").references(() => cptaEcritures.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    createdBy: integer("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("cpta_pieces_contribuable_idx").on(t.contribuableId, t.datePiece),
+    index("cpta_pieces_exercice_idx").on(t.exerciceId, t.type),
+    index("cpta_pieces_tiers_idx").on(t.tiersId),
+  ],
+);
+
+export const cptaPieceLignes = pgTable(
+  "cpta_piece_lignes",
+  {
+    id: serial("id").primaryKey(),
+    pieceId: integer("piece_id")
+      .references(() => cptaPieces.id, { onDelete: "cascade" })
+      .notNull(),
+    ordre: integer("ordre").notNull(),
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "restrict" })
+      .notNull(),
+    libelle: text("libelle"),
+    montantHt: numeric("montant_ht", { precision: 14, scale: 2 }).notNull(),
+    taxeId: integer("taxe_id").references(() => cptaTaxes.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [index("cpta_piece_lignes_piece_idx").on(t.pieceId, t.ordre)],
+);
+
+// ---------------------------------------------------------------------------
 // Relations (Drizzle Query API)
 // ---------------------------------------------------------------------------
 
@@ -1373,3 +1450,26 @@ export const cptaRapprochementLignesRelations = relations(
     }),
   }),
 );
+
+export const cptaPiecesRelations = relations(cptaPieces, ({ one, many }) => ({
+  contribuable: one(contribuables, {
+    fields: [cptaPieces.contribuableId],
+    references: [contribuables.id],
+  }),
+  exercice: one(cptaExercices, {
+    fields: [cptaPieces.exerciceId],
+    references: [cptaExercices.id],
+  }),
+  tiers: one(cptaTiers, { fields: [cptaPieces.tiersId], references: [cptaTiers.id] }),
+  ecriture: one(cptaEcritures, {
+    fields: [cptaPieces.ecritureId],
+    references: [cptaEcritures.id],
+  }),
+  lignes: many(cptaPieceLignes),
+}));
+
+export const cptaPieceLignesRelations = relations(cptaPieceLignes, ({ one }) => ({
+  piece: one(cptaPieces, { fields: [cptaPieceLignes.pieceId], references: [cptaPieces.id] }),
+  compte: one(cptaComptes, { fields: [cptaPieceLignes.compteId], references: [cptaComptes.id] }),
+  taxe: one(cptaTaxes, { fields: [cptaPieceLignes.taxeId], references: [cptaTaxes.id] }),
+}));

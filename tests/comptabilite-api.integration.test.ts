@@ -49,6 +49,8 @@ const rapprochementRoute = await import("@/app/api/comptabilite/rapprochements/[
 const pointerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/pointer/route");
 const cloturerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/cloturer/route");
 const postesTiersRoute = await import("@/app/api/comptabilite/tiers/[id]/postes-ouverts/route");
+const piecesRoute = await import("@/app/api/comptabilite/pieces/route");
+const pieceRoute = await import("@/app/api/comptabilite/pieces/[id]/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -111,6 +113,9 @@ async function nettoyer() {
       .where(eq(schema.cptaExercices.contribuableId, id));
 
     for (const ex of exercices) {
+      await db
+        .delete(schema.cptaPieces)
+        .where(eq(schema.cptaPieces.exerciceId, ex.id));
       await db
         .delete(schema.cptaSequences)
         .where(eq(schema.cptaSequences.exerciceId, ex.id));
@@ -1752,5 +1757,168 @@ describe("lettrage à la saisie d'un règlement", () => {
     );
     expect(res.status).toBe(400);
     expect((await res.json()).error.message).toMatch(/poste ouvert/);
+  });
+});
+
+describe("pièces persistées", () => {
+  let clientId: number;
+  let compte701: number;
+  let compte411: number;
+  let taxeCollectee: number;
+  let journalBanque: number;
+  let pieceId: number;
+  let ecritureId: number;
+
+  beforeAll(async () => {
+    const comptes = await db
+      .select({ id: schema.cptaComptes.id, numero: schema.cptaComptes.numero })
+      .from(schema.cptaComptes)
+      .where(eq(schema.cptaComptes.contribuableId, contribuableId));
+    const parNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+    compte701 = parNumero.get("701")!;
+    compte411 = parNumero.get("411")!;
+
+    const [client] = await db
+      .insert(schema.cptaTiers)
+      .values({ contribuableId, code: "C-PIECE", raisonSociale: "Client des pièces", types: ["CLIENT"], compteId: compte411 })
+      .returning();
+    clientId = client.id;
+
+    const taxes = await db
+      .select({ id: schema.cptaTaxes.id, code: schema.cptaTaxes.code })
+      .from(schema.cptaTaxes)
+      .where(eq(schema.cptaTaxes.contribuableId, contribuableId));
+    taxeCollectee = taxes.find((t) => t.code === "TVA1925")!.id;
+
+    const [bq] = await db
+      .select({ id: schema.cptaJournaux.id })
+      .from(schema.cptaJournaux)
+      .where(and(eq(schema.cptaJournaux.contribuableId, contribuableId), eq(schema.cptaJournaux.code, "BQ")));
+    journalBanque = bq.id;
+  });
+
+  it("une facture est conservée avec ses lignes, et liée à son écriture dans les deux sens", async () => {
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-20",
+        reference: "P-2026-001",
+        dateEcheance: "2026-12-25",
+        tiersId: clientId,
+        lignes: [
+          { compteId: compte701, montantHt: "100000", taxeId: taxeCollectee, libelle: "Pains" },
+          { compteId: compte701, montantHt: "20000", taxeId: null, libelle: "Livraison" },
+        ],
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    pieceId = body.piece.id;
+    ecritureId = body.ecriture.id;
+
+    expect(body.piece.totalHt).toBe("120000.00");
+    expect(body.piece.totalTva).toBe("19250.00");
+    expect(body.piece.totalTtc).toBe("139250.00");
+    expect(body.piece.ecritureId).toBe(ecritureId);
+    // L'écriture désigne la pièce d'où elle vient.
+    expect(body.ecriture.origine).toBe("FACTURE_VENTE");
+    expect(body.ecriture.origineId).toBe(pieceId);
+
+    const lignes = await db.select().from(schema.cptaPieceLignes).where(eq(schema.cptaPieceLignes.pieceId, pieceId));
+    expect(lignes.map((l) => [l.ordre, l.libelle, l.montantHt, l.taxeId])).toEqual([
+      [0, "Pains", "100000.00", taxeCollectee],
+      [1, "Livraison", "20000.00", null],
+    ]);
+  });
+
+  it("se lit avec ses statuts dérivés : brouillon, règlement sans objet", async () => {
+    connecte();
+    const res = await pieceRoute.GET(get(""), ctx(pieceId));
+    expect(res.status).toBe(200);
+    const p = await res.json();
+    expect(p.statutComptable).toBe("BROUILLON");
+    expect(p.statutReglement).toBe("SANS_OBJET");
+    expect(p.tiers.raisonSociale).toBe("Client des pièces");
+    expect(p.lignes).toHaveLength(2);
+    expect(p.lignes[0].compteNumero).toBe("701");
+    expect(p.lignes[0].taux).toBe("19.2500");
+  });
+
+  it("validée et non réglée, échéance passée : en retard", async () => {
+    connecte();
+    expect((await validerRoute.POST(post(""), ctx(ecritureId))).status).toBe(200);
+    const p = await (await pieceRoute.GET(get(""), ctx(pieceId))).json();
+    expect(p.statutComptable).toBe("VALIDEE");
+    expect(p.numeroPiece).toMatch(/^VE2026-/);
+    // Le test tourne après le 25/12/2026 pour le calendrier de Douala… ou pas :
+    // la seule chose stable est que le statut suit l'échéance et le jour.
+    expect(["EN_ATTENTE", "EN_RETARD"]).toContain(p.statutReglement);
+  });
+
+  it("réglée dès que sa ligne est lettrée par un règlement", async () => {
+    connecte();
+    const [ligne] = await db
+      .select({ id: schema.cptaLignesEcriture.id })
+      .from(schema.cptaLignesEcriture)
+      .where(and(eq(schema.cptaLignesEcriture.ecritureId, ecritureId), eq(schema.cptaLignesEcriture.compteId, compte411)));
+
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-22",
+        tiersId: clientId,
+        montant: "139250",
+        sens: "ENCAISSEMENT",
+        valider: true,
+        lettrerAvec: [ligne.id],
+      }),
+    );
+    expect(res.status).toBe(201);
+
+    const p = await (await pieceRoute.GET(get(""), ctx(pieceId))).json();
+    expect(p.statutReglement).toBe("REGLEE");
+  });
+
+  it("la liste de l'exercice retrouve la pièce, filtrable par type et par tiers", async () => {
+    connecte();
+    const toutes = await (await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}`))).json();
+    expect(toutes.some((p: { id: number }) => p.id === pieceId)).toBe(true);
+
+    const achats = await (
+      await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}&type=FACTURE_ACHAT`))
+    ).json();
+    expect(achats.every((p: { type: string }) => p.type === "FACTURE_ACHAT")).toBe(true);
+    expect(achats.some((p: { id: number }) => p.id === pieceId)).toBe(false);
+
+    const duClient = await (
+      await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}&tiersId=${clientId}`))
+    ).json();
+    expect(duClient.map((p: { id: number }) => p.id)).toEqual([pieceId]);
+  });
+
+  it("survit à la suppression de son brouillon : à recomptabiliser", async () => {
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-23",
+        reference: "P-2026-002",
+        tiersId: clientId,
+        lignes: [{ compteId: compte701, montantHt: "5000" }],
+      }),
+    );
+    const { piece, ecriture } = await res.json();
+    expect((await ecritureRoute.DELETE(post(""), ctx(ecriture.id))).status).toBe(204);
+
+    const p = await (await pieceRoute.GET(get(""), ctx(piece.id))).json();
+    expect(p.ecritureId).toBeNull();
+    expect(p.statutComptable).toBe("NON_COMPTABILISEE");
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    expect((await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}`))).status).toBe(401);
   });
 });

@@ -19,16 +19,16 @@ export const POST = withApi(async (req: NextRequest) => {
     body.valider ? "update" : "create",
   );
 
-  const { ecriture, generee } = await enregistrerFactureVente(body, user.id);
+  const { ecriture, generee, piece } = await enregistrerFactureVente(body, user.id);
 
   await writeAudit({
     userId: user.id,
     action: "CREATE",
     entite: "cpta_ecritures",
     entiteId: ecriture.id,
-    diff: { apres: { origine: "FACTURE_VENTE", reference: generee.reference, totalTtc: generee.totalTtc } },
+    diff: { apres: { pieceId: piece.id, origine: "FACTURE_VENTE", reference: generee.reference, totalTtc: generee.totalTtc } },
     ip: clientIp(req),
   });
 
-  return created({ ecriture, generee });
+  return created({ piece, ecriture, generee });
 });

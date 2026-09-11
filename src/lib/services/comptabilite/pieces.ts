@@ -1,16 +1,18 @@
 import "server-only";
-import { and, eq, inArray, or, like } from "drizzle-orm";
+import { and, desc, eq, inArray, or, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   cptaComptes,
   cptaEcritures,
   cptaJournaux,
   cptaLignesEcriture,
+  cptaPieceLignes,
+  cptaPieces,
   cptaTaxes,
   cptaTiers,
 } from "@/db/schema";
 import { badRequest, conflict, notFound } from "@/lib/http";
-import { parseMontant } from "@/lib/comptable/money";
+import { formatMontant, parseMontant } from "@/lib/comptable/money";
 import {
   genererFactureVente,
   genererFactureAchat,
@@ -200,6 +202,7 @@ async function enregistrer(
     journalId: number;
     dateEcriture: string;
     origine: NonNullable<Parameters<typeof creerBrouillon>[0]["origine"]>;
+    origineId?: number;
     valider: boolean;
   },
   userId: number | null,
@@ -212,6 +215,7 @@ async function enregistrer(
       libelle: generee.libelle,
       reference: generee.reference,
       origine: p.origine,
+      origineId: p.origineId ?? null,
       lignes: generee.lignes,
     },
     userId,
@@ -228,68 +232,93 @@ async function enregistrer(
 // Pièces
 // ---------------------------------------------------------------------------
 
-export async function enregistrerFactureVente(input: EntreeFacture, userId: number | null) {
+/**
+ * Persiste la pièce, génère et enregistre son écriture, et lie les deux.
+ *
+ * La pièce est écrite d'abord : c'est elle que l'on retrouve, relit, et dont
+ * on suit le règlement. L'écriture la désigne par `origine_id`, la pièce
+ * désigne l'écriture par `ecriture_id` — le lien tient dans les deux sens,
+ * et survit à la suppression d'un brouillon (la pièce reste, à
+ * recomptabiliser).
+ */
+async function enregistrerFacture(
+  type: "FACTURE_VENTE" | "FACTURE_ACHAT",
+  input: EntreeFacture,
+  userId: number | null,
+) {
   const exercice = await getExercice(input.exerciceId);
-  const [client, lignes, journal] = await Promise.all([
+  const [tiers, lignes, journal] = await Promise.all([
     chargerTiers(input.tiersId, exercice.contribuableId),
     lignesPiece(input.lignes, exercice.contribuableId, input.dateEcriture),
     input.journalId
       ? journalParId(input.journalId, exercice.contribuableId)
-      : journalParDefaut(exercice.contribuableId, "VENTE"),
+      : journalParDefaut(exercice.contribuableId, type === "FACTURE_VENTE" ? "VENTE" : "ACHAT"),
   ]);
 
+  const commun = { lignes, reference: input.reference, dateEcheance: input.dateEcheance };
   const generee = generer(() =>
-    genererFactureVente({
-      client,
-      lignes,
-      reference: input.reference,
-      dateEcheance: input.dateEcheance,
-    }),
+    type === "FACTURE_VENTE"
+      ? genererFactureVente({ client: tiers, ...commun })
+      : genererFactureAchat({ fournisseur: tiers, ...commun }),
   );
 
-  return enregistrer(
+  const piece = await db.transaction(async (tx) => {
+    const [p] = await tx
+      .insert(cptaPieces)
+      .values({
+        contribuableId: exercice.contribuableId,
+        exerciceId: input.exerciceId,
+        type,
+        reference: input.reference ?? null,
+        tiersId: tiers.id,
+        datePiece: input.dateEcriture,
+        dateEcheance: input.dateEcheance ?? null,
+        totalHt: formatMontant(generee.totalHt),
+        totalTva: formatMontant(generee.totalTva),
+        totalTtc: formatMontant(generee.totalTtc),
+        createdBy: userId,
+      })
+      .returning();
+    await tx.insert(cptaPieceLignes).values(
+      lignes.map((l, i) => ({
+        pieceId: p.id,
+        ordre: i,
+        compteId: l.compteId,
+        libelle: l.libelle ?? null,
+        montantHt: formatMontant(l.montantHt),
+        taxeId: l.taxe?.id ?? null,
+      })),
+    );
+    return p;
+  });
+
+  const resultat = await enregistrer(
     generee,
     {
       exerciceId: input.exerciceId,
       journalId: journal.id,
       dateEcriture: input.dateEcriture,
-      origine: "FACTURE_VENTE",
+      origine: type,
+      origineId: piece.id,
       valider: !!input.valider,
     },
     userId,
   );
+
+  await db
+    .update(cptaPieces)
+    .set({ ecritureId: resultat.ecriture.id })
+    .where(eq(cptaPieces.id, piece.id));
+
+  return { ...resultat, piece: { ...piece, ecritureId: resultat.ecriture.id } };
+}
+
+export async function enregistrerFactureVente(input: EntreeFacture, userId: number | null) {
+  return enregistrerFacture("FACTURE_VENTE", input, userId);
 }
 
 export async function enregistrerFactureAchat(input: EntreeFacture, userId: number | null) {
-  const exercice = await getExercice(input.exerciceId);
-  const [fournisseur, lignes, journal] = await Promise.all([
-    chargerTiers(input.tiersId, exercice.contribuableId),
-    lignesPiece(input.lignes, exercice.contribuableId, input.dateEcriture),
-    input.journalId
-      ? journalParId(input.journalId, exercice.contribuableId)
-      : journalParDefaut(exercice.contribuableId, "ACHAT"),
-  ]);
-
-  const generee = generer(() =>
-    genererFactureAchat({
-      fournisseur,
-      lignes,
-      reference: input.reference,
-      dateEcheance: input.dateEcheance,
-    }),
-  );
-
-  return enregistrer(
-    generee,
-    {
-      exerciceId: input.exerciceId,
-      journalId: journal.id,
-      dateEcriture: input.dateEcriture,
-      origine: "FACTURE_ACHAT",
-      valider: !!input.valider,
-    },
-    userId,
-  );
+  return enregistrerFacture("FACTURE_ACHAT", input, userId);
 }
 
 /**
@@ -474,4 +503,105 @@ export async function liquiderTva(
     },
     userId,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Lecture des pièces
+// ---------------------------------------------------------------------------
+
+export type StatutComptable = "NON_COMPTABILISEE" | "BROUILLON" | "VALIDEE" | "CONTREPASSEE";
+export type StatutReglement = "SANS_OBJET" | "EN_ATTENTE" | "EN_RETARD" | "REGLEE";
+
+/**
+ * Statut de règlement d'une facture, lu sur le lettrage de sa ligne de tiers.
+ *
+ * Lettrée, elle est réglée — c'est la définition du lettrage. Non lettrée,
+ * elle attend, ou elle est en retard si son échéance est passée. Une pièce
+ * non validée n'a pas de règlement à suivre : sa ligne n'est pas encore un
+ * mouvement.
+ */
+function statutReglement(
+  statutComptable: StatutComptable,
+  lettrage: string | null,
+  dateEcheance: string | null,
+  aujourdhui: string,
+): StatutReglement {
+  if (statutComptable !== "VALIDEE") return "SANS_OBJET";
+  if (lettrage) return "REGLEE";
+  if (dateEcheance && dateEcheance < aujourdhui) return "EN_RETARD";
+  return "EN_ATTENTE";
+}
+
+export type FiltrePieces = {
+  exerciceId: number;
+  type?: "FACTURE_VENTE" | "FACTURE_ACHAT";
+  tiersId?: number;
+};
+
+export async function listerPieces(filtre: FiltrePieces, aujourdhui: string) {
+  const conditions = [eq(cptaPieces.exerciceId, filtre.exerciceId)];
+  if (filtre.type) conditions.push(eq(cptaPieces.type, filtre.type));
+  if (filtre.tiersId) conditions.push(eq(cptaPieces.tiersId, filtre.tiersId));
+
+  const rows = await db
+    .select({
+      piece: cptaPieces,
+      tiersCode: cptaTiers.code,
+      tiersRaisonSociale: cptaTiers.raisonSociale,
+      tiersCompteId: cptaTiers.compteId,
+      ecritureStatut: cptaEcritures.statut,
+      numeroPiece: cptaEcritures.numeroPiece,
+      // Le lettrage de la ligne du tiers, seule ligne de l'écriture sur son compte.
+      lettrage: sql<string | null>`(
+        select l.lettrage from cpta_lignes_ecriture l
+        where l.ecriture_id = ${cptaEcritures.id} and l.compte_id = ${cptaTiers.compteId}
+        limit 1
+      )`,
+    })
+    .from(cptaPieces)
+    .innerJoin(cptaTiers, eq(cptaPieces.tiersId, cptaTiers.id))
+    .leftJoin(cptaEcritures, eq(cptaPieces.ecritureId, cptaEcritures.id))
+    .where(and(...conditions))
+    .orderBy(desc(cptaPieces.datePiece), desc(cptaPieces.id));
+
+  return rows.map((r) => {
+    const statutComptable: StatutComptable = r.ecritureStatut ?? "NON_COMPTABILISEE";
+    return {
+      ...r.piece,
+      tiers: { code: r.tiersCode, raisonSociale: r.tiersRaisonSociale },
+      numeroPiece: r.numeroPiece,
+      statutComptable,
+      statutReglement: statutReglement(statutComptable, r.lettrage, r.piece.dateEcheance, aujourdhui),
+    };
+  });
+}
+
+export async function getPiece(id: number, aujourdhui: string) {
+  const [row] = await db.select().from(cptaPieces).where(eq(cptaPieces.id, id));
+  if (!row) throw notFound("Pièce introuvable.");
+
+  const [detail] = await listerPieces({ exerciceId: row.exerciceId, tiersId: row.tiersId }, aujourdhui).then(
+    (l) => l.filter((p) => p.id === id),
+  );
+
+  const lignes = await db
+    .select({
+      id: cptaPieceLignes.id,
+      ordre: cptaPieceLignes.ordre,
+      compteId: cptaPieceLignes.compteId,
+      compteNumero: cptaComptes.numero,
+      compteLibelle: cptaComptes.libelle,
+      libelle: cptaPieceLignes.libelle,
+      montantHt: cptaPieceLignes.montantHt,
+      taxeId: cptaPieceLignes.taxeId,
+      taxeLibelle: cptaTaxes.libelle,
+      taux: cptaTaxes.taux,
+    })
+    .from(cptaPieceLignes)
+    .innerJoin(cptaComptes, eq(cptaPieceLignes.compteId, cptaComptes.id))
+    .leftJoin(cptaTaxes, eq(cptaPieceLignes.taxeId, cptaTaxes.id))
+    .where(eq(cptaPieceLignes.pieceId, id))
+    .orderBy(cptaPieceLignes.ordre);
+
+  return { ...detail, lignes };
 }
