@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, CheckCircle2, RefreshCw, Trash2, Plus } from "lucide-react";
+import { BookOpen, CalendarPlus, CheckCircle2, FileSpreadsheet, Printer, RefreshCw, Trash2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,6 +41,10 @@ const STATUT: Record<StatutPeriode, { libelle: string; classe: string }> = {
 };
 
 const CLES = ["paie-periodes", "paie-periode", "paie-bulletin"];
+
+/** Un lien qui s'ouvre dans un onglet, habillé comme un bouton « outline » petit. */
+const LIEN_BOUTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted";
 
 function formatTaux(t: string | null) {
   if (!t) return "";
@@ -214,6 +218,12 @@ function BulletinDialog({ id, modifiable, onFerme }: { id: number; modifiable: b
       )}
       {data && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <a href={`/api/paie/bulletins/${data.id}/pdf`} target="_blank" rel="noreferrer" className={LIEN_BOUTON}>
+              <Printer className="h-4 w-4" />
+              Imprimer le bulletin
+            </a>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Card className="p-3">
               <p className="text-xs uppercase text-muted-foreground">Brut</p>
@@ -252,12 +262,14 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
   const [aSupprimer, setASupprimer] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const brouillon = periode.statut === "BROUILLON";
   const rafraichir = () => CLES.forEach((c) => qc.invalidateQueries({ queryKey: [c] }));
 
   async function agir(action: () => Promise<unknown>, apres?: () => void) {
     setEnCours(true);
     setErreur(null);
+    setInfo(null);
     try {
       await action();
       rafraichir();
@@ -267,6 +279,17 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
     } finally {
       setEnCours(false);
     }
+  }
+
+  async function valider() {
+    await agir(
+      async () => {
+        const r = await apiSend<{ ecriture: { numeroPiece: string | null } | null; motif: string | null }>(`/api/paie/periodes/${periode.id}/valider`, "POST");
+        if (r?.ecriture) setInfo(`Mois validé. Écriture de paie ${r.ecriture.numeroPiece ?? ""} passée dans les livres, cotisations CNPS reportées.`);
+        else setInfo(`Mois validé, cotisations CNPS reportées. L'écriture de paie attend : ${r?.motif ?? ""}`);
+      },
+      () => setAValider(false),
+    );
   }
 
   const t = periode.totaux;
@@ -280,7 +303,23 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
           barème du {formatDateFR(periode.baremeValideDu)}
           {periode.valideeLe ? ` · validé le ${formatDateFR(periode.valideeLe)}` : ""}
         </span>
-        <div className="ml-auto flex gap-2">
+        {periode.ecritureId && <Badge className="border-transparent bg-success/15 text-success">Comptabilisé</Badge>}
+        {!brouillon && !periode.ecritureId && <Badge className="border-transparent bg-warning/15 text-warning">Écriture en attente</Badge>}
+        <div className="ml-auto flex flex-wrap gap-2">
+          <a href={`/api/paie/periodes/${periode.id}/pdf`} target="_blank" rel="noreferrer" className={LIEN_BOUTON}>
+            <Printer className="h-4 w-4" />
+            Bulletins
+          </a>
+          <a href={`/api/paie/periodes/${periode.id}/dipe`} className={LIEN_BOUTON}>
+            <FileSpreadsheet className="h-4 w-4" />
+            DIPE
+          </a>
+          {!brouillon && !periode.ecritureId && can("paie", "update") && (
+            <Button variant="outline" size="sm" disabled={enCours} onClick={() => agir(() => apiSend(`/api/paie/periodes/${periode.id}/comptabiliser`, "POST"), () => setInfo("Écriture de paie passée dans les livres."))}>
+              <BookOpen className="h-4 w-4" />
+              Comptabiliser
+            </Button>
+          )}
           {brouillon && can("paie", "update") && (
             <Button variant="outline" size="sm" disabled={enCours} onClick={() => agir(() => apiSend(`/api/paie/periodes/${periode.id}/recalculer`, "POST"))}>
               <RefreshCw className="h-4 w-4" />
@@ -303,6 +342,7 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
       </div>
 
       {erreur && <p className="rounded-md border border-danger/40 bg-danger/5 p-3 text-sm text-danger">{erreur}</p>}
+      {info && <p className="rounded-md border border-success/40 bg-success/10 p-3 text-sm text-success">{info}</p>}
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[
@@ -371,9 +411,9 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
         open={aValider}
         onClose={() => setAValider(false)}
         title={`Valider ${libelleMois(periode.periode)}`}
-        description="Les bulletins ne se modifieront plus. Vérifiez les éléments du mois de chaque salarié avant de valider."
+        description="Les bulletins ne se modifieront plus. Les cotisations CNPS du mois sont reportées dans leur suivi et, si un exercice est ouvert, l'écriture de paie est passée dans les livres."
         confirmLabel="Valider"
-        onConfirm={() => agir(() => apiSend(`/api/paie/periodes/${periode.id}/valider`, "POST"), () => setAValider(false))}
+        onConfirm={valider}
         loading={enCours}
       />
       <ConfirmDialog

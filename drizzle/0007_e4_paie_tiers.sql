@@ -1,0 +1,2 @@
+ALTER TABLE "paie_salaries" ADD COLUMN "tiers_id" integer;--> statement-breakpoint
+ALTER TABLE "paie_salaries" ADD CONSTRAINT "paie_salaries_tiers_id_cpta_tiers_id_fk" FOREIGN KEY ("tiers_id") REFERENCES "public"."cpta_tiers"("id") ON DELETE set null ON UPDATE no action;

@@ -1200,6 +1200,8 @@ export const paieSalaries = pgTable(
     banque: text("banque"),
     /** Avantages en nature servis, évalués forfaitairement au barème. */
     avantagesNature: jsonb("avantages_nature").$type<string[]>().default([]).notNull(),
+    /** Compte individuel du salarié dans les livres (tiers sur 422), créé à la première paie comptabilisée. */
+    tiersId: integer("tiers_id").references(() => cptaTiers.id, { onDelete: "set null" }),
     actif: boolean("actif").default(true).notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1634,6 +1636,7 @@ export const cptaPieceLignesRelations = relations(cptaPieceLignes, ({ one }) => 
 
 export const paieSalariesRelations = relations(paieSalaries, ({ one, many }) => ({
   contribuable: one(contribuables, { fields: [paieSalaries.contribuableId], references: [contribuables.id] }),
+  tiers: one(cptaTiers, { fields: [paieSalaries.tiersId], references: [cptaTiers.id] }),
   rubriquesFixes: many(paieRubriquesFixes),
   bulletins: many(paieBulletins),
 }));

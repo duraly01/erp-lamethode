@@ -3,23 +3,26 @@ import { getSessionUser } from "@/lib/session";
 import { requirePermission } from "@/lib/rbac";
 import { ok, withApi } from "@/lib/http";
 import { idParamSchema } from "@/lib/schemas/common";
-import { validerPeriode } from "@/lib/services/paie/periodes";
+import { comptabiliserPeriode } from "@/lib/services/paie/comptabilisation";
 import { writeAudit, clientIp } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Fige le mois : les bulletins ne bougent plus. Reporte la CNPS et, si possible, passe l'écriture. */
+/**
+ * Passe l'écriture de paie d'un mois validé qui n'en a pas encore — parce
+ * que l'exercice n'était pas ouvert au moment de la validation, par exemple.
+ */
 export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
   const user = requirePermission(await getSessionUser(), "paie", "update");
   const { id } = idParamSchema.parse(await params);
-  const periode = await validerPeriode(id, user.id);
+  const ecriture = await comptabiliserPeriode(id, user.id);
   await writeAudit({
     userId: user.id,
     action: "UPDATE",
     entite: "paie_periodes",
     entiteId: id,
-    diff: { apres: { statut: "VALIDEE", periode: periode.periode, ecritureId: periode.ecriture?.id ?? null, motif: periode.motif } },
+    diff: { apres: { ecritureId: ecriture.id, numeroPiece: ecriture.numeroPiece } },
     ip: clientIp(req),
   });
-  return ok(periode);
+  return ok(ecriture);
 });

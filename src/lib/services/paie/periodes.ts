@@ -8,6 +8,7 @@ import { calculerBulletin, PaieInvalideError, type Bulletin, type Rubrique } fro
 import { baremeEnVigueur, type AvantageNature, type BaremePaie } from "@/lib/paie/bareme";
 import type { ElementsBulletinSaisis } from "@/lib/schemas/paie";
 import { baremePourPeriode, lireBaremePaie } from "./bareme";
+import { comptabiliserSiPossible, reporterCotisationsCnps } from "./comptabilisation";
 
 /**
  * Mois de paie et bulletins.
@@ -316,17 +317,25 @@ export async function recalculerPeriode(id: number) {
   return getPeriode(id);
 }
 
-/** Fige le mois. */
+/**
+ * Fige le mois, puis en tire ce qui en découle : la ligne de cotisations
+ * CNPS, et l'écriture de paie si le contribuable tient ses livres ici. Sans
+ * exercice ouvert sur le mois, le mois est validé quand même et l'écriture
+ * attendra — le motif est rendu pour être montré.
+ */
 export async function validerPeriode(id: number, userId: number | null) {
   const periode = await periodeModifiable(id);
   const [{ n }] = await db.select({ n: count() }).from(paieBulletins).where(eq(paieBulletins.periodeId, id));
   if (n === 0) throw badRequest("Aucun bulletin dans ce mois.");
-  const [validee] = await db
+  await db
     .update(paiePeriodes)
     .set({ statut: "VALIDEE", valideeLe: new Date(), valideePar: userId, updatedAt: new Date() })
-    .where(eq(paiePeriodes.id, periode.id))
-    .returning();
-  return validee;
+    .where(eq(paiePeriodes.id, periode.id));
+
+  const cnps = await reporterCotisationsCnps(id);
+  const { ecriture, motif } = await comptabiliserSiPossible(id, userId);
+  const [validee] = await db.select().from(paiePeriodes).where(eq(paiePeriodes.id, id));
+  return { ...validee, ecriture, motif, cnps };
 }
 
 /** Un mois en brouillon se jette avec ses bulletins ; validé, il reste. */

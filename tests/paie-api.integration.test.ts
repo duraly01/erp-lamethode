@@ -24,6 +24,11 @@ const validerRoute = await import("@/app/api/paie/periodes/[id]/valider/route");
 const recalculerRoute = await import("@/app/api/paie/periodes/[id]/recalculer/route");
 const bulletinRoute = await import("@/app/api/paie/bulletins/[id]/route");
 const baremeRoute = await import("@/app/api/paie/bareme/route");
+const comptabiliserRoute = await import("@/app/api/paie/periodes/[id]/comptabiliser/route");
+const bulletinPdfRoute = await import("@/app/api/paie/bulletins/[id]/pdf/route");
+const periodePdfRoute = await import("@/app/api/paie/periodes/[id]/pdf/route");
+const dipeRoute = await import("@/app/api/paie/periodes/[id]/dipe/route");
+const exercicesRoute = await import("@/app/api/comptabilite/exercices/route");
 
 const NOM_TEMOIN = "ZZ TEST API PAIE";
 const ACCES_TOTAL = [{ ressource: "*", actions: ["*"] }];
@@ -59,6 +64,17 @@ async function nettoyer() {
   for (const { id } of temoins) {
     await db.delete(schema.paiePeriodes).where(eq(schema.paiePeriodes.contribuableId, id));
     await db.delete(schema.paieSalaries).where(eq(schema.paieSalaries.contribuableId, id));
+    await db.delete(schema.cnpsCotisations).where(eq(schema.cnpsCotisations.contribuableId, id));
+    const exercices = await db.select({ id: schema.cptaExercices.id }).from(schema.cptaExercices).where(eq(schema.cptaExercices.contribuableId, id));
+    for (const ex of exercices) {
+      await db.delete(schema.cptaSequences).where(eq(schema.cptaSequences.exerciceId, ex.id));
+      await db.delete(schema.cptaEcritures).where(eq(schema.cptaEcritures.exerciceId, ex.id));
+    }
+    await db.delete(schema.cptaExercices).where(eq(schema.cptaExercices.contribuableId, id));
+    await db.delete(schema.cptaTiers).where(eq(schema.cptaTiers.contribuableId, id));
+    await db.delete(schema.cptaTaxes).where(eq(schema.cptaTaxes.contribuableId, id));
+    await db.delete(schema.cptaJournaux).where(eq(schema.cptaJournaux.contribuableId, id));
+    await db.delete(schema.cptaComptes).where(eq(schema.cptaComptes.contribuableId, id));
     await db.delete(schema.contribuables).where(eq(schema.contribuables.id, id));
   }
 }
@@ -275,11 +291,19 @@ describe("mois de paie", () => {
     expect(Number(liste[0].totalBrut)).toBe(590_000 + 80_000);
   });
 
-  it("se valide, puis ne bouge plus", async () => {
+  it("se valide, puis ne bouge plus ; sans exercice ouvert, l'écriture attend et le dit", async () => {
     connecte();
     const res = await validerRoute.POST(post(""), ctx(periodeId));
     expect(res.status).toBe(200);
-    expect((await res.json()).statut).toBe("VALIDEE");
+    const v = await res.json();
+    expect(v.statut).toBe("VALIDEE");
+    expect(v.ecriture).toBeNull();
+    expect(v.motif).toMatch(/Aucun exercice comptable/);
+    // La ligne CNPS du mois est posée, à l'échéance du 15 du mois suivant.
+    expect(v.cnps.periode).toBe("2026-06");
+    expect(v.cnps.dateEcheance).toBe("2026-07-15");
+    expect(Number(v.cnps.masseSalariale)).toBe(590_000 + 80_000);
+    expect(Number(v.cnps.montantSalarie)).toBe(Math.round((590_000 + 80_000) * 0.042));
 
     expect((await bulletinRoute.PUT(put("", { joursAbsence: 1 }), ctx(bulletinId))).status).toBe(409);
     expect((await recalculerRoute.POST(post(""), ctx(periodeId))).status).toBe(409);
@@ -305,5 +329,92 @@ describe("mois de paie", () => {
     connecte(LECTURE_SEULE);
     expect((await periodesRoute.POST(post("/api/paie/periodes", { contribuableId, periode: "2026-08" }))).status).toBe(403);
     expect((await periodeRoute.GET(get(""), ctx(periodeId))).status).toBe(200);
+  });
+});
+
+describe("après validation : écriture, CNPS, documents", () => {
+  it("comptabilise le mois une fois l'exercice ouvert : écriture équilibrée sur les comptes de paie", async () => {
+    connecte();
+    const ex = await exercicesRoute.POST(
+      post("/api/comptabilite/exercices", { contribuableId, libelle: "Exercice 2026", dateDebut: "2026-01-01", dateFin: "2026-12-31" }),
+    );
+    expect(ex.status).toBe(201);
+
+    const res = await comptabiliserRoute.POST(post(""), ctx(periodeId));
+    expect(res.status).toBe(200);
+    const e = await res.json();
+    expect(e.statut).toBe("VALIDEE");
+    expect(e.origine).toBe("PAIE");
+    expect(e.origineId).toBe(periodeId);
+    expect(e.numeroPiece).toMatch(/^OD2026-/);
+    expect(e.dateEcriture).toBe("2026-06-30");
+
+    const lignes = await db
+      .select({ numero: schema.cptaComptes.numero, tiersId: schema.cptaLignesEcriture.tiersId, debit: schema.cptaLignesEcriture.debit, credit: schema.cptaLignesEcriture.credit })
+      .from(schema.cptaLignesEcriture)
+      .innerJoin(schema.cptaComptes, eq(schema.cptaLignesEcriture.compteId, schema.cptaComptes.id))
+      .where(eq(schema.cptaLignesEcriture.ecritureId, e.id));
+    const par = (n: string) => lignes.find((l) => l.numero === n);
+    // S001 : 600 000 − 60 000 + 20 000 = 560 000 de salaire, 30 000 de prime ; S009 : 80 000.
+    expect(par("6611")?.debit).toBe("640000.00");
+    expect(par("6612")?.debit).toBe("30000.00");
+    // Une ligne de net par salarié, chacune sur son tiers ; un seul acompte.
+    const nets = lignes.filter((l) => l.numero === "422");
+    expect(nets).toHaveLength(2);
+    expect(nets.every((l) => l.tiersId !== null)).toBe(true);
+    expect(par("421")?.credit).toBe("100000.00");
+    const s = await (await salarieRoute.GET(get(""), ctx(salarieId))).json();
+    expect(s.tiersId).not.toBeNull();
+    const [tiers] = await db.select().from(schema.cptaTiers).where(eq(schema.cptaTiers.id, s.tiersId));
+    expect(tiers.code).toBe("SAL-S001");
+    expect(tiers.types).toEqual(["SALARIE"]);
+    expect(par("431")?.credit).toBeDefined();
+    expect(par("4471")?.credit).toBeDefined();
+    const debit = lignes.reduce((s, l) => s + Number(l.debit ?? 0), 0);
+    const credit = lignes.reduce((s, l) => s + Number(l.credit ?? 0), 0);
+    expect(debit).toBe(credit);
+
+    const p = await (await periodeRoute.GET(get(""), ctx(periodeId))).json();
+    expect(p.ecritureId).toBe(e.id);
+  });
+
+  it("ne se comptabilise pas deux fois", async () => {
+    connecte();
+    expect((await comptabiliserRoute.POST(post(""), ctx(periodeId))).status).toBe(409);
+  });
+
+  it("un bulletin s'imprime, et le mois entier aussi", async () => {
+    connecte();
+    const un = await bulletinPdfRoute.GET(get(""), ctx(bulletinId));
+    expect(un.status).toBe(200);
+    expect(un.headers.get("content-type")).toBe("application/pdf");
+    expect(un.headers.get("content-disposition")).toMatch(/inline; filename="Bulletin_S001_2026-06\.pdf"/);
+    expect(Buffer.from(await un.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
+
+    const tous = await periodePdfRoute.GET(get(""), ctx(periodeId));
+    expect(tous.status).toBe(200);
+    expect(tous.headers.get("content-disposition")).toMatch(/Bulletins_2026-06\.pdf/);
+  });
+
+  it("le DIPE du mois sort en classeur, une ligne par salarié et un total", async () => {
+    connecte();
+    const res = await dipeRoute.GET(get(""), ctx(periodeId));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="DIPE_2026-06\.xlsx"/);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("DIPE 2026-06")!;
+    expect(ws.getCell("A1").value).toBe("Matricule");
+    expect(ws.getCell("A2").value).toBe("S001");
+    expect(ws.getCell("A3").value).toBe("S009");
+    expect(ws.getCell("A4").value).toBe("TOTAL");
+    expect(ws.getCell("H2").value).toBe(590_000);
+  });
+
+  it("refuse 403 en lecture seule sur la comptabilisation", async () => {
+    connecte(LECTURE_SEULE);
+    expect((await comptabiliserRoute.POST(post(""), ctx(periodeId))).status).toBe(403);
   });
 });
