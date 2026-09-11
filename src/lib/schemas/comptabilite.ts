@@ -155,3 +155,21 @@ export const tvaQuerySchema = z.object({
   exerciceId: idPositif,
   periode: periodeMensuelle,
 });
+
+// ---------------------------------------------------------------------------
+// DSF — liquidation de l'impôt sur le résultat
+// ---------------------------------------------------------------------------
+
+/**
+ * Retraitements fiscaux saisis par le comptable.
+ *
+ * Ils ne se déduisent d'aucune écriture — charges non déductibles, produits
+ * exonérés — et sont donc reçus en entrée, en francs comme tout montant saisi.
+ */
+const retraitement = montantSaisi.default("0");
+
+export const dsfQuerySchema = z.object({
+  exerciceId: idPositif,
+  reintegrations: retraitement,
+  deductions: retraitement,
+});

@@ -37,6 +37,7 @@ const etatsRoute = await import(
   "@/app/api/comptabilite/etats-financiers/route"
 );
 const tvaRoute = await import("@/app/api/comptabilite/tva/route");
+const dsfRoute = await import("@/app/api/comptabilite/dsf/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -874,6 +875,157 @@ describe("déclaration de TVA", () => {
     deconnecte();
     const res = await tvaRoute.GET(
       get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`),
+    );
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("DSF et liquidation de l'impôt", () => {
+  const CLE_BAREME = "impot_resultat_bareme";
+
+  async function poserBareme(valeur: unknown | null) {
+    await db.delete(schema.parametres).where(eq(schema.parametres.cle, CLE_BAREME));
+    if (valeur !== null) {
+      await db.insert(schema.parametres).values({ cle: CLE_BAREME, valeur });
+    }
+  }
+
+  afterAll(async () => {
+    await poserBareme(null);
+  });
+
+  it("rend la liasse et le résultat sans barème, mais pas l'impôt", async () => {
+    await poserBareme(null);
+    connecte();
+
+    const res = await dsfRoute.GET(
+      get(`/api/comptabilite/dsf?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(200);
+
+    const dsf = await res.json();
+    expect(dsf.annee).toBe("2026");
+    expect(dsf.etats.bilan.equilibre).toBe(true);
+    expect(dsf.liquidation.baremeManquant).toBe(true);
+
+    // Zéro se lirait « rien à payer » ; null dit « pas calculable ».
+    expect(dsf.liquidation.impotSurResultat).toBeNull();
+    expect(dsf.liquidation.soldeAPayer).toBeNull();
+
+    // Ce qui vient des livres est là malgré tout.
+    expect(typeof dsf.liquidation.chiffreAffaires).toBe("number");
+    expect(dsf.liquidation.resultatComptable).toBe(
+      dsf.etats.resultat.resultatNet,
+    );
+  });
+
+  it("refuse de reporter un montant tant que le barème manque", async () => {
+    await poserBareme(null);
+    connecte();
+    const res = await dsfRoute.POST(
+      post("/api/comptabilite/dsf", { exerciceId }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("liquide l'impôt une fois le barème paramétré", async () => {
+    await poserBareme({ tauxImpot: "33", tauxMinimum: "2.2" });
+    connecte();
+
+    const res = await dsfRoute.GET(
+      get(`/api/comptabilite/dsf?exerciceId=${exerciceId}`),
+    );
+    const dsf = await res.json();
+
+    expect(dsf.liquidation.baremeManquant).toBe(false);
+    expect(dsf.liquidation.impotSurResultat).not.toBeNull();
+    expect(dsf.liquidation.minimumPerception).not.toBeNull();
+    // L'impôt retenu est toujours le plus élevé des deux.
+    expect(dsf.liquidation.impotRetenu).toBe(
+      Math.max(dsf.liquidation.impotSurResultat, dsf.liquidation.minimumPerception),
+    );
+  });
+
+  it("le minimum de perception reste dû sur un exercice déficitaire", async () => {
+    await poserBareme({ tauxImpot: "33", tauxMinimum: "2.2" });
+    connecte();
+
+    // Le déficit est provoqué par une déduction massive plutôt que présumé du
+    // jeu de données, que les blocs précédents font varier. Ce qui est vérifié
+    // ici est la règle : une perte n'exonère pas du minimum, assis sur le
+    // chiffre d'affaires et non sur le résultat.
+    const res = await dsfRoute.GET(
+      get(
+        `/api/comptabilite/dsf?exerciceId=${exerciceId}&deductions=999999999`,
+      ),
+    );
+    const dsf = await res.json();
+
+    expect(dsf.liquidation.resultatFiscal).toBeLessThan(0);
+    expect(dsf.liquidation.impotSurResultat).toBe(0);
+    expect(dsf.liquidation.chiffreAffaires).toBeGreaterThan(0);
+    expect(dsf.liquidation.minimumApplique).toBe(true);
+    expect(dsf.liquidation.impotRetenu).toBeGreaterThan(0);
+  });
+
+  it("applique les retraitements fiscaux reçus", async () => {
+    await poserBareme({ tauxImpot: "33", tauxMinimum: "2.2" });
+    connecte();
+
+    const sans = await (
+      await dsfRoute.GET(get(`/api/comptabilite/dsf?exerciceId=${exerciceId}`))
+    ).json();
+    const avec = await (
+      await dsfRoute.GET(
+        get(
+          `/api/comptabilite/dsf?exerciceId=${exerciceId}&reintegrations=1000000`,
+        ),
+      )
+    ).json();
+
+    expect(avec.liquidation.resultatFiscal - sans.liquidation.resultatFiscal).toBe(
+      100_000_000,
+    );
+  });
+
+  it("reporte le solde sur la déclaration DSF existante", async () => {
+    await poserBareme({ tauxImpot: "33", tauxMinimum: "2.2" });
+
+    const [decl] = await db
+      .insert(schema.declarations)
+      .values({
+        contribuableId,
+        type: "DSF",
+        periodicite: "ANNUELLE",
+        periode: "2026",
+        dateEcheance: "2027-03-15",
+      })
+      .returning();
+    expect(decl.montant).toBeNull();
+
+    connecte();
+    const res = await dsfRoute.POST(
+      post("/api/comptabilite/dsf", { exerciceId }),
+    );
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.declaration.montant).not.toBeNull();
+    expect(body.declaration.statut).toBe("A_FAIRE");
+  });
+
+  it("refuse 403 le report en lecture seule", async () => {
+    connecte(LECTURE_SEULE);
+    const res = await dsfRoute.POST(
+      post("/api/comptabilite/dsf", { exerciceId }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    const res = await dsfRoute.GET(
+      get(`/api/comptabilite/dsf?exerciceId=${exerciceId}`),
     );
     expect(res.status).toBe(401);
   });
