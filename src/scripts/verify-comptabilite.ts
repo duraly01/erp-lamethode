@@ -1,7 +1,8 @@
 import "dotenv/config";
 
 // ---------------------------------------------------------------------------
-// Banc de vérification de la comptabilité générale (E1)
+// Banc de vérification de la comptabilité générale (E1) et des états
+// financiers SYSCOHADA (E2)
 //
 //   docker compose up -d db
 //   npm run db:migrate:node
@@ -40,6 +41,7 @@ import {
 } from "@/lib/services/comptabilite/ecritures";
 import { lettrerLignes } from "@/lib/services/comptabilite/lettrage";
 import { getBalance } from "@/lib/services/comptabilite/restitutions";
+import { getEtatsFinanciers } from "@/lib/services/comptabilite/etats-financiers";
 
 const NOM_TEMOIN = "ZZ VERIFICATION COMPTABLE (temporaire)";
 
@@ -503,6 +505,114 @@ async function main() {
     `       total mouvementé : ${formatMontantAffichage(balance.totaux.totalDebit)}`,
   );
   console.log(`       comptes mouvementés : ${balance.lignes.length}`);
+
+  // -------------------------------------------------------------------------
+  console.log("\n8. États financiers (E2)");
+
+  const etats = await getEtatsFinanciers(exercice.id);
+
+  verifier("bilan équilibré", etats.bilan.equilibre);
+  egal("écart actif / passif nul", etats.bilan.ecart, 0);
+
+  // Le contrôle qui a le plus de valeur : un compte oublié laisserait le bilan
+  // équilibré avec un total faux, ce qui ne se voit nulle part.
+  egal(
+    "aucun compte mouvementé hors des états",
+    etats.comptesNonRattaches.map((c) => c.compteNumero).join(", ") || "—",
+    "—",
+  );
+
+  /**
+   * Résultat recalculé à la main depuis la balance, sans passer par les postes :
+   * produits moins charges, soit l'opposé de la somme des soldes des classes 6,
+   * 7 et 8. Une erreur de signe, ou un compte de gestion égaré vers un poste de
+   * bilan, se verrait ici et nulle part ailleurs.
+   */
+  const resultatNaif = -balance.lignes
+    .filter((l) => ["6", "7", "8"].includes(l.compteNumero[0]))
+    .reduce((t, l) => t + l.soldeDebiteur - l.soldeCrediteur, 0);
+
+  egal(
+    "résultat des postes = produits − charges de la balance",
+    etats.resultat.resultatNet,
+    resultatNaif,
+  );
+
+  const posteNet = (section: typeof etats.bilan.actif, code: string) =>
+    section.find((l) => l.code === code)!.net;
+
+  egal(
+    "le résultat est repris au poste CJ du passif",
+    posteNet(etats.bilan.passif, "CJ"),
+    resultatNaif,
+  );
+
+  // Recoupement des deux postes de trésorerie contre la balance brute. Un
+  // compte bancaire créditeur est un découvert : il passe en trésorerie-passif,
+  // et la somme des deux postes doit rendre la position nette de trésorerie.
+  const comptesTresorerie = balance.lignes.filter(
+    (l) => l.compteNumero.startsWith("5") && !l.compteNumero.startsWith("56"),
+  );
+  const positionNette = comptesTresorerie.reduce(
+    (t, l) => t + l.soldeDebiteur - l.soldeCrediteur,
+    0,
+  );
+
+  egal(
+    "trésorerie-actif − trésorerie-passif = position nette de la classe 5",
+    posteNet(etats.bilan.actif, "BT") - posteNet(etats.bilan.passif, "DT"),
+    positionNette,
+  );
+
+  verifier(
+    "aucune trésorerie-actif négative : un compte à découvert passe au passif",
+    posteNet(etats.bilan.actif, "BT") >= 0,
+    `BT = ${formatMontantAffichage(posteNet(etats.bilan.actif, "BT"))}`,
+  );
+
+  egal(
+    "total général actif = total général passif",
+    etats.bilan.totalActif,
+    etats.bilan.totalPassif,
+  );
+
+  verifier(
+    "l'état porte les rattachements restant à confirmer",
+    etats.rattachementsAConfirmer.length > 0,
+  );
+
+  egal("un premier exercice n'a pas de comparatif", etats.exercicePrecedent, null);
+
+  console.log(
+    `       total du bilan : ${formatMontantAffichage(etats.bilan.totalActif)}`,
+  );
+  console.log(
+    `       résultat net : ${formatMontantAffichage(etats.resultat.resultatNet)}`,
+  );
+
+  // -------------------------------------------------------------------------
+  console.log("\n9. Comparatif N-1");
+
+  const suivant = await ouvrirExercice({
+    contribuableId: ctb.id,
+    libelle: "Exercice 2027",
+    dateDebut: "2027-01-01",
+    dateFin: "2027-12-31",
+  });
+
+  const etatsSuivant = await getEtatsFinanciers(suivant.id);
+
+  egal(
+    "le nouvel exercice se rattache au précédent",
+    etatsSuivant.exercicePrecedent?.id,
+    exercice.id,
+  );
+  egal("son bilan est vide", posteNet(etatsSuivant.bilan.actif, "BZ"), 0);
+  egal(
+    "mais la colonne N-1 reprend le total de l'exercice précédent",
+    etatsSuivant.bilan.actif.find((l) => l.code === "BZ")!.netPrecedent,
+    etats.bilan.totalActif,
+  );
 
   // -------------------------------------------------------------------------
   await nettoyer();

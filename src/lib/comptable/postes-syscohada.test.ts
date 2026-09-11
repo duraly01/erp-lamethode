@@ -86,6 +86,20 @@ describe("rattachement des comptes aux postes", () => {
     });
   });
 
+  it("un compte bancaire créditeur est un découvert, donc au passif", () => {
+    expect(posteDuCompte("5211", DEBITEUR)).toBe("BS");
+    expect(posteDuCompte("5211", CREDITEUR)).toBe("DR");
+    expect(posteDuCompte("531", CREDITEUR)).toBe("DR");
+  });
+
+  it("une caisse créditrice reste à l'actif, en négatif", () => {
+    // Une caisse ne peut pas être à découvert : un solde créditeur y est une
+    // erreur de saisie. La ranger parmi les concours bancaires la rendrait
+    // plausible, alors qu'elle doit sauter aux yeux.
+    expect(posteDuCompte("571", DEBITEUR)).toBe("BS");
+    expect(posteDuCompte("571", CREDITEUR)).toBe("BS");
+  });
+
   it("un compte inconnu du plan est signalé, pas rattaché au hasard", () => {
     expect(rattachementDuCompte("999")).toBeNull();
     expect(posteDuCompte("999", DEBITEUR)).toBeNull();

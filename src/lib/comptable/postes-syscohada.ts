@@ -267,7 +267,15 @@ export const RATTACHEMENTS: Record<string, Rattachement> = {
   "49": { poste: "BI", role: "AMORTISSEMENT" },
 
   // --- Classe 5 — Trésorerie -----------------------------------------------
+  //
+  // Un compte bancaire créditeur est un découvert : il se présente en
+  // trésorerie-passif, et non en trésorerie-actif négative. La caisse, elle,
+  // reste à l'actif quoi qu'il arrive — une caisse créditrice n'est pas un
+  // financement, c'est une erreur de saisie, et elle doit rester visible comme
+  // telle plutôt que d'être rangée parmi les concours bancaires.
   "5": { poste: "BS" },
+  "52": { debiteur: "BS", crediteur: "DR" },
+  "53": { debiteur: "BS", crediteur: "DR" },
   "561": { poste: "DR" },
   "564": { poste: "DR" },
   "565": { poste: "DR" },
