@@ -33,6 +33,9 @@ const lettragesRoute = await import(
   "@/app/api/comptabilite/comptes/[id]/lettrages/route"
 );
 const balanceRoute = await import("@/app/api/comptabilite/balance/route");
+const etatsRoute = await import(
+  "@/app/api/comptabilite/etats-financiers/route"
+);
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -518,5 +521,181 @@ describe("compte 521 disponible pour la suite", () => {
       .from(schema.cptaComptes)
       .where(eq(schema.cptaComptes.id, compte521));
     expect(c.rapprochable).toBe(true);
+  });
+});
+
+describe("états financiers", () => {
+  /**
+   * Retrouve un poste dans une section de l'état rendue par l'API.
+   *
+   * Les champs sont ceux du JSON : `net`/`netPrecedent` au bilan,
+   * `montant`/`montantPrecedent` au compte de résultat, chacun absent de
+   * l'autre section — d'où le type partiel.
+   */
+  type LignePoste = {
+    code: string;
+    net?: number;
+    netPrecedent?: number | null;
+    montant?: number;
+    montantPrecedent?: number | null;
+  };
+  const poste = (lignes: LignePoste[], code: string) =>
+    lignes.find((l) => l.code === code);
+
+  it("rend un bilan équilibré sur les écritures réellement saisies", async () => {
+    connecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(200);
+
+    const etats = await res.json();
+    // L'équilibre du bilan sur de vraies écritures est la preuve de bout en
+    // bout que le rattachement des comptes couvre ce que l'application produit.
+    expect(etats.bilan.ecart).toBe(0);
+    expect(etats.bilan.equilibre).toBe(true);
+  });
+
+  it("ne laisse aucun compte hors des états", async () => {
+    connecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    const etats = await res.json();
+    expect(etats.comptesNonRattaches).toEqual([]);
+  });
+
+  /**
+   * Les écritures des blocs précédents ont été contre-passées : leurs soldes se
+   * neutralisent, et un état calculé dessus est nul partout. Ce bloc pose donc
+   * ses propres écritures plutôt que de s'appuyer sur celles d'un autre test.
+   */
+  async function poserUnPetitExercice() {
+    connecte();
+    const achat = await ecrituresRoute.POST(
+      post("/api/comptabilite/ecritures", {
+        exerciceId,
+        journalId: journalAchatId,
+        dateEcriture: "2026-09-10",
+        libelle: "Achat à crédit pour les états financiers",
+        lignes: [
+          { compteId: compte601, debit: "50000.00" },
+          { compteId: compte4452, debit: "9625.00" },
+          { compteId: compte401, tiersId, credit: "59625.00" },
+        ],
+      }),
+    );
+    expect(achat.status).toBe(201);
+    const a = await achat.json();
+    expect(
+      (await validerRoute.POST(post(""), ctx(a.id))).status,
+    ).toBe(200);
+
+    const financement = await ecrituresRoute.POST(
+      post("/api/comptabilite/ecritures", {
+        exerciceId,
+        journalId: journalAchatId,
+        dateEcriture: "2026-09-11",
+        libelle: "Encaissement pour les états financiers",
+        lignes: [
+          { compteId: compte521, debit: "80000.00" },
+          { compteId: compte401, tiersId, credit: "80000.00" },
+        ],
+      }),
+    );
+    expect(financement.status).toBe(201);
+    const f = await financement.json();
+    expect(
+      (await validerRoute.POST(post(""), ctx(f.id))).status,
+    ).toBe(200);
+  }
+
+  it("ventile les comptes mouvementés vers leurs postes", async () => {
+    await poserUnPetitExercice();
+
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    const etats = await res.json();
+
+    // 601 → achats de marchandises, 401 → fournisseurs d'exploitation,
+    // 4452 → TVA récupérable, donc une créance sur l'État, 5211 → trésorerie.
+    expect(poste(etats.resultat.lignes, "RA")!.montant).toBe(5_000_000);
+    expect(poste(etats.bilan.actif, "BJ")!.net).toBe(962_500);
+    expect(poste(etats.bilan.actif, "BS")!.net).toBe(8_000_000);
+    expect(poste(etats.bilan.passif, "DJ")!.net).toBe(13_962_500);
+
+    // Le résultat de l'exercice fait la contrepartie de l'écart entre ce qui
+    // est entré à l'actif et ce qui a été financé.
+    expect(poste(etats.bilan.passif, "CJ")!.net).toBe(-5_000_000);
+    expect(etats.bilan.totalActif).toBe(8_962_500);
+    expect(etats.bilan.equilibre).toBe(true);
+  });
+
+  it("accompagne l'état des rattachements restant à confirmer", async () => {
+    connecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    const etats = await res.json();
+    expect(etats.rattachementsAConfirmer.length).toBeGreaterThan(0);
+    expect(etats.rattachementsAConfirmer[0]).toHaveProperty("motif");
+  });
+
+  it("sans exercice précédent, la colonne de comparaison est vide et non nulle", async () => {
+    connecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    const etats = await res.json();
+    // Zéro affirmerait qu'il n'y avait rien l'an dernier ; `null` dit qu'on
+    // ne sait pas, ce qui est le cas d'un premier exercice.
+    expect(etats.exercicePrecedent).toBeNull();
+    expect(poste(etats.bilan.actif, "BZ")!.netPrecedent).toBeNull();
+  });
+
+  it("rattache le comparatif au premier exercice dès qu'un second est ouvert", async () => {
+    connecte();
+    const creation = await exercicesRoute.POST(
+      post("/api/comptabilite/exercices", {
+        contribuableId,
+        libelle: "Exercice 2027",
+        dateDebut: "2027-01-01",
+        dateFin: "2027-12-31",
+      }),
+    );
+    expect(creation.status).toBe(201);
+    const suivant = await creation.json();
+
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${suivant.id}`),
+    );
+    const etats = await res.json();
+
+    expect(etats.exercicePrecedent).toEqual({
+      id: exerciceId,
+      libelle: expect.any(String),
+    });
+
+    // L'exercice 2027 est vide : son bilan est à zéro, mais la colonne N-1
+    // reprend bien le total de l'exercice précédent.
+    expect(poste(etats.bilan.actif, "BZ")!.net).toBe(0);
+    expect(poste(etats.bilan.actif, "BZ")!.netPrecedent).not.toBe(0);
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("refuse 403 sans la permission comptabilite", async () => {
+    connecte(SANS_COMPTA);
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(403);
   });
 });
