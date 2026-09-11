@@ -1,9 +1,10 @@
 import "server-only";
-import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   cptaComptes,
   cptaEcritures,
+  cptaExercices,
   cptaLettrages,
   cptaLignesEcriture,
 } from "@/db/schema";
@@ -31,6 +32,10 @@ async function chargerLignesDuCompte(compteId: number, ligneIds?: number[]) {
     eq(cptaLignesEcriture.compteId, compteId),
     // Un brouillon n'est pas encore un mouvement : il ne se lettre pas.
     ne(cptaEcritures.statut, "BROUILLON"),
+    // Un exercice clos a repris ses postes ouverts dans le suivant : ce sont
+    // les reprises qui vivent désormais. Garder les originaux les ferait
+    // apparaître deux fois, et lettrer dans un exercice clos n'a pas de sens.
+    eq(cptaExercices.statut, "OUVERT"),
   ];
   if (ligneIds) conditions.push(inArray(cptaLignesEcriture.id, ligneIds));
 
@@ -44,11 +49,14 @@ async function chargerLignesDuCompte(compteId: number, ligneIds?: number[]) {
       lettrage: cptaLignesEcriture.lettrage,
       dateEcriture: cptaEcritures.dateEcriture,
       numeroPiece: cptaEcritures.numeroPiece,
-      libelle: cptaEcritures.libelle,
+      // Le libellé de ligne quand il existe : c'est lui qui nomme la facture
+      // sur une écriture qui en reprend plusieurs.
+      libelle: sql<string>`coalesce(${cptaLignesEcriture.libelle}, ${cptaEcritures.libelle})`,
       dateEcheance: cptaLignesEcriture.dateEcheance,
     })
     .from(cptaLignesEcriture)
     .innerJoin(cptaEcritures, eq(cptaLignesEcriture.ecritureId, cptaEcritures.id))
+    .innerJoin(cptaExercices, eq(cptaEcritures.exerciceId, cptaExercices.id))
     .where(and(...conditions));
 }
 

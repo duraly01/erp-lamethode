@@ -35,6 +35,7 @@ import { SaisieAssisteePanel } from "./SaisieAssisteePanel";
 import { RapprochementPanel } from "./RapprochementPanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
+import { ClotureDialog } from "./ClotureDialog";
 
 /**
  * Écran de la comptabilité générale (E1).
@@ -107,7 +108,8 @@ export function ComptabiliteClient() {
   const { data: taxes } = useTaxes(contribuableId);
 
   const [ouvertureOuverte, setOuvertureOuverte] = useState(false);
-  const [aCloturer, setACloturer] = useState<Exercice["statut"] | null>(null);
+  const [aVerrouiller, setAVerrouiller] = useState(false);
+  const [clotureOuverte, setClotureOuverte] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -128,7 +130,7 @@ export function ComptabiliteClient() {
         statut,
       });
       qc.invalidateQueries({ queryKey: ["cpta-exercices"] });
-      setACloturer(null);
+      setAVerrouiller(false);
     } catch (e) {
       setErreur(messageErreur(e));
     } finally {
@@ -205,15 +207,15 @@ export function ComptabiliteClient() {
 
         <div className="ml-auto flex items-center gap-2 pb-1">
           {exercice?.statut === "OUVERT" && can("comptabilite", "delete") && (
-            <Button variant="outline" onClick={() => setACloturer("CLOS")}>
+            <Button variant="outline" onClick={() => setClotureOuverte(true)}>
               <Archive className="h-4 w-4" />
-              Clore
+              Clôturer
             </Button>
           )}
           {exercice?.statut === "CLOS" && can("comptabilite", "delete") && (
             <Button
               variant="outline"
-              onClick={() => setACloturer("VERROUILLE")}
+              onClick={() => setAVerrouiller(true)}
             >
               <Lock className="h-4 w-4" />
               Verrouiller
@@ -327,22 +329,25 @@ export function ComptabiliteClient() {
       </Dialog>
 
       <ConfirmDialog
-        open={!!aCloturer}
-        onClose={() => setACloturer(null)}
-        title={
-          aCloturer === "VERROUILLE"
-            ? "Verrouiller cet exercice ?"
-            : "Clore cet exercice ?"
-        }
-        confirmLabel={aCloturer === "VERROUILLE" ? "Verrouiller" : "Clore"}
-        description={
-          aCloturer === "VERROUILLE"
-            ? "Plus aucune écriture ne pourra y être portée, et l'exercice ne pourra plus être rouvert depuis cet écran."
-            : "La saisie y sera fermée. Les écritures restent consultables, et l'exercice peut être rouvert."
-        }
+        open={aVerrouiller}
+        onClose={() => setAVerrouiller(false)}
+        title="Verrouiller cet exercice ?"
+        confirmLabel="Verrouiller"
+        description="Plus aucune écriture ne pourra y être portée, et l'exercice ne pourra plus être rouvert depuis cet écran."
         loading={enCours}
-        onConfirm={() => changerStatut(aCloturer ?? "CLOS")}
+        onConfirm={() => changerStatut("VERROUILLE")}
       />
+
+      {clotureOuverte && exercice && (
+        <ClotureDialog
+          exercice={exercice}
+          onClose={() => setClotureOuverte(false)}
+          onClos={(suivantId) => {
+            setClotureOuverte(false);
+            setExerciceChoisi(suivantId);
+          }}
+        />
+      )}
     </div>
   );
 }

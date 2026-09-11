@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   contribuables,
   cptaComptes,
+  cptaEcritures,
   cptaExercices,
   cptaJournaux,
   cptaSequences,
@@ -221,6 +222,20 @@ export async function changerStatutExercice(
     throw conflict(
       "Cet exercice est verrouillé : sa réouverture ne peut pas se faire depuis l'application.",
     );
+  }
+
+  // Une fois ses soldes repris dans l'exercice suivant, rouvrir un exercice
+  // permettrait d'y saisir ce que les à-nouveaux ne refléteraient plus.
+  if (statut === "OUVERT" && exercice.statut === "CLOS") {
+    const [{ n }] = await db
+      .select({ n: count() })
+      .from(cptaEcritures)
+      .where(and(eq(cptaEcritures.origine, "A_NOUVEAUX"), eq(cptaEcritures.origineId, exerciceId)));
+    if (n > 0) {
+      throw conflict(
+        "Cet exercice a été clôturé et ses à-nouveaux repris dans le suivant : il ne se rouvre plus.",
+      );
+    }
   }
 
   const [maj] = await db

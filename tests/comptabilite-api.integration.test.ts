@@ -19,6 +19,7 @@ const { db } = await import("@/db");
 const schema = await import("@/db/schema");
 
 const exercicesRoute = await import("@/app/api/comptabilite/exercices/route");
+const exerciceRoute = await import("@/app/api/comptabilite/exercices/[id]/route");
 const comptesRoute = await import("@/app/api/comptabilite/comptes/route");
 const journauxRoute = await import("@/app/api/comptabilite/journaux/route");
 const ecrituresRoute = await import("@/app/api/comptabilite/ecritures/route");
@@ -51,6 +52,7 @@ const cloturerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/c
 const postesTiersRoute = await import("@/app/api/comptabilite/tiers/[id]/postes-ouverts/route");
 const piecesRoute = await import("@/app/api/comptabilite/pieces/route");
 const pieceRoute = await import("@/app/api/comptabilite/pieces/[id]/route");
+const clotureRoute = await import("@/app/api/comptabilite/exercices/[id]/cloture/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -1920,5 +1922,171 @@ describe("pièces persistées", () => {
   it("refuse 401 sans session", async () => {
     deconnecte();
     expect((await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}`))).status).toBe(401);
+  });
+});
+
+describe("clôture d'exercice", () => {
+  let suivantId: number;
+
+  it("dit ce qui empêche de clôturer", async () => {
+    connecte();
+    const res = await clotureRoute.GET(get(""), ctx(exerciceId));
+    expect(res.status).toBe(200);
+    const c = await res.json();
+    expect(c.suivant).not.toBeNull();
+    expect(c.suivant.libelle).toBe("Exercice 2027");
+    suivantId = c.suivant.id;
+    expect(c.balanceEquilibree).toBe(true);
+    // Les blocs précédents ont laissé des brouillons : c'est un obstacle nommé.
+    if (c.brouillons > 0) expect(c.obstacles.join(" ")).toMatch(/brouillon/);
+  });
+
+  it("refuse tant qu'un obstacle subsiste", async () => {
+    connecte();
+    const c = await (await clotureRoute.GET(get(""), ctx(exerciceId))).json();
+    if (c.obstacles.length === 0) return;
+    const res = await clotureRoute.POST(post(""), ctx(exerciceId));
+    expect(res.status).toBe(409);
+  });
+
+  it("pointe une partie de la banque avant clôture, pour vérifier la reprise", async () => {
+    // Le rapprochement clôturé plus haut a été supprimé par son test ; on en
+    // refait un qui pointe tout sauf une ligne, et on le clôture.
+    connecte();
+    const balance = await (
+      await balanceRoute.GET(get(`/api/comptabilite/balance?exerciceId=${exerciceId}&dateFin=2026-12-31`))
+    ).json();
+    const l = balance.lignes.find((x: { compteNumero: string }) => x.compteNumero === "5211");
+    const solde = l.soldeDebiteur - l.soldeCrediteur;
+
+    const cree = await rapprochementsRoute.POST(
+      post("/api/comptabilite/rapprochements", {
+        exerciceId,
+        compteId: compte521,
+        dateRapprochement: "2026-12-31",
+        soldeReleve: String(solde / 100),
+      }),
+    );
+    // Un rapprochement clôturé existe déjà si le bloc précédent a tout pointé :
+    // dans ce cas rien à faire, les lignes sont déjà pointées.
+    if (cree.status === 409) return;
+    expect(cree.status).toBe(201);
+    const r = await cree.json();
+    const { etat } = await (await rapprochementRoute.GET(get(""), ctx(r.id))).json();
+    const [laisseeDeCote, ...aPointer] = etat.nonPointees;
+    if (aPointer.length > 0) {
+      await pointerRoute.POST(
+        post("", { ligneIds: aPointer.map((x: { ligneId: number }) => x.ligneId), pointer: true }),
+        ctx(r.id),
+      );
+    }
+    // On corrige le relevé pour que l'écart soit nul avec cette ligne laissée de côté.
+    const apres = await (await rapprochementRoute.GET(get(""), ctx(r.id))).json();
+    await rapprochementRoute.PATCH(
+      patch("", { soldeReleve: String(apres.etat.soldeRapproche / 100) }),
+      ctx(r.id),
+    );
+    expect((await cloturerRoute.POST(post(""), ctx(r.id))).status).toBe(200);
+    void laisseeDeCote;
+  });
+
+  it("clôture une fois les brouillons levés : à-nouveaux dans le suivant, exercice clos", async () => {
+    connecte();
+    const brouillons = await db
+      .select({ id: schema.cptaEcritures.id })
+      .from(schema.cptaEcritures)
+      .where(and(eq(schema.cptaEcritures.exerciceId, exerciceId), eq(schema.cptaEcritures.statut, "BROUILLON")));
+    for (const b of brouillons) {
+      expect((await ecritureRoute.DELETE(post(""), ctx(b.id))).status).toBe(204);
+    }
+
+    const avant = await (await etatsRoute.GET(get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`))).json();
+
+    const res = await clotureRoute.POST(post(""), ctx(exerciceId));
+    expect(res.status).toBe(200);
+    const r = await res.json();
+    expect(r.exercice.statut).toBe("CLOS");
+    expect(r.aNouveaux.numeroPiece).toMatch(/^AN2027-/);
+    expect(r.aNouveaux.lignes).toBeGreaterThan(0);
+    expect(r.aNouveaux.resultatNet).toBe(avant.resultat.resultatNet);
+
+    // Le bilan d'ouverture de 2027 est le bilan de clôture de 2026, et le
+    // résultat de 2026 y est devenu un poste de bilan.
+    const apres = await (await etatsRoute.GET(get(`/api/comptabilite/etats-financiers?exerciceId=${suivantId}`))).json();
+    expect(apres.bilan.totalActif).toBe(avant.bilan.totalActif);
+    expect(apres.bilan.equilibre).toBe(true);
+    expect(apres.resultat.resultatNet).toBe(0);
+    const cj = (e: { bilan: { passif: { code: string; net: number }[] } }) =>
+      e.bilan.passif.find((p) => p.code === "CJ")!.net;
+    expect(cj(apres)).toBe(cj(avant));
+  });
+
+  it("les postes ouverts d'un tiers sont désormais ses reprises, pas les originaux", async () => {
+    connecte();
+    const [client] = await db
+      .select({ id: schema.cptaTiers.id })
+      .from(schema.cptaTiers)
+      .where(and(eq(schema.cptaTiers.contribuableId, contribuableId), eq(schema.cptaTiers.code, "C001")));
+    const postes = await (await postesTiersRoute.GET(get(""), ctx(client.id))).json();
+    expect(postes.length).toBeGreaterThan(0);
+
+    const [an] = await db
+      .select({ id: schema.cptaEcritures.id })
+      .from(schema.cptaEcritures)
+      .where(and(eq(schema.cptaEcritures.exerciceId, suivantId), eq(schema.cptaEcritures.origine, "A_NOUVEAUX")));
+    const lignesAN = await db
+      .select({ id: schema.cptaLignesEcriture.id })
+      .from(schema.cptaLignesEcriture)
+      .where(eq(schema.cptaLignesEcriture.ecritureId, an.id));
+    const idsAN = new Set(lignesAN.map((l) => l.id));
+    expect(postes.every((p: { ligneId: number }) => idsAN.has(p.ligneId))).toBe(true);
+    // Et le tiers, l'échéance et le libellé de reprise ont suivi.
+    expect(postes.every((p: { tiersId: number; libelle: string }) => p.tiersId === client.id)).toBe(true);
+    expect(postes.every((p: { libelle: string }) => /Reprise à nouveau/.test(p.libelle))).toBe(true);
+  });
+
+  it("reprend la banque : une ligne par mouvement non pointé, un solde pour les pointés", async () => {
+    connecte();
+    const [an] = await db
+      .select({ id: schema.cptaEcritures.id })
+      .from(schema.cptaEcritures)
+      .where(and(eq(schema.cptaEcritures.exerciceId, suivantId), eq(schema.cptaEcritures.origine, "A_NOUVEAUX")));
+    const lignes = await db
+      .select({ libelle: schema.cptaLignesEcriture.libelle })
+      .from(schema.cptaLignesEcriture)
+      .where(and(eq(schema.cptaLignesEcriture.ecritureId, an.id), eq(schema.cptaLignesEcriture.compteId, compte521)));
+
+    const soldes = lignes.filter((x) => x.libelle?.includes("solde rapproché"));
+    const details = lignes.filter((x) => !x.libelle?.includes("solde rapproché"));
+    // Les lignes pointées se résument en un seul solde ; les autres restent une par une.
+    expect(soldes).toHaveLength(1);
+    expect(details.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("ne se clôture pas deux fois, et ne se rouvre plus", async () => {
+    connecte();
+    expect((await clotureRoute.POST(post(""), ctx(exerciceId))).status).toBe(409);
+    const res = await exerciceRoute.PATCH(patch("", { statut: "OUVERT" }), ctx(exerciceId));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.message).toMatch(/ne se rouvre plus/);
+  });
+
+  it("l'exercice clos n'accepte plus de saisie", async () => {
+    connecte();
+    const res = await ecrituresRoute.POST(
+      post("/api/comptabilite/ecritures", {
+        exerciceId,
+        journalId: journalAchatId,
+        dateEcriture: "2026-12-30",
+        libelle: "Trop tard",
+        lignes: [],
+      }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("refuse 403 sans la permission de clôture", async () => {
+    connecte(LECTURE_SEULE);
+    expect((await clotureRoute.POST(post(""), ctx(suivantId))).status).toBe(403);
   });
 });
