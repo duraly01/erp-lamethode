@@ -55,6 +55,11 @@ export const parContribuableSchema = z.object({
   contribuableId: idPositif,
 });
 
+/** Filtre des états rattachés à un exercice entier. */
+export const parExerciceSchema = z.object({
+  exerciceId: idPositif,
+});
+
 // ---------------------------------------------------------------------------
 // Écritures
 // ---------------------------------------------------------------------------

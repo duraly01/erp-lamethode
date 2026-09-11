@@ -42,6 +42,7 @@ import {
 import { lettrerLignes } from "@/lib/services/comptabilite/lettrage";
 import { getBalance } from "@/lib/services/comptabilite/restitutions";
 import { getEtatsFinanciers } from "@/lib/services/comptabilite/etats-financiers";
+import { getFluxTresorerie } from "@/lib/services/comptabilite/flux-tresorerie";
 
 const NOM_TEMOIN = "ZZ VERIFICATION COMPTABLE (temporaire)";
 
@@ -588,6 +589,36 @@ async function main() {
   );
   console.log(
     `       résultat net : ${formatMontantAffichage(etats.resultat.resultatNet)}`,
+  );
+
+  // -------------------------------------------------------------------------
+  console.log("\n8 bis. Tableau des flux de trésorerie");
+
+  const flux = await getFluxTresorerie(exercice.id);
+
+  egal(
+    "la trésorerie reconstituée par les flux retrouve celle de la balance",
+    flux.ecart,
+    0,
+  );
+  egal(
+    "trésorerie de clôture = position nette de la classe 5",
+    flux.tresorerieCloture,
+    positionNette,
+  );
+  egal(
+    "aucun compte mouvementé hors du tableau",
+    flux.comptesHorsTableau.map((c) => c.compteNumero).join(", ") || "—",
+    "—",
+  );
+  // Sans dotation ni cession dans le témoin, la CAFG est le résultat lui-même.
+  egal(
+    "la CAFG repart du résultat net",
+    flux.lignes.find((l) => l.code === "FA")!.montant,
+    etats.resultat.resultatNet,
+  );
+  console.log(
+    `       variation de trésorerie : ${formatMontantAffichage(flux.lignes.find((l) => l.code === "ZE")!.montant)}`,
   );
 
   // -------------------------------------------------------------------------

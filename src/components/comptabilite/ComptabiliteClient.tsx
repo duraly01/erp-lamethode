@@ -30,6 +30,7 @@ import {
   PlanComptablePanel,
 } from "./RestitutionsPanels";
 import { EtatsFinanciersPanel } from "./EtatsFinanciersPanel";
+import { FluxTresoreriePanel } from "./FluxTresoreriePanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
 
@@ -47,6 +48,7 @@ type Onglet =
   | "balance"
   | "grand-livre"
   | "etats"
+  | "flux"
   | "tva"
   | "dsf"
   | "plan";
@@ -56,6 +58,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
   { cle: "etats", libelle: "États financiers" },
+  { cle: "flux", libelle: "Flux de trésorerie" },
   { cle: "tva", libelle: "TVA" },
   { cle: "dsf", libelle: "DSF" },
   { cle: "plan", libelle: "Plan comptable" },
@@ -279,6 +282,7 @@ export function ComptabiliteClient() {
             <GrandLivrePanel exercice={exercice} comptes={comptes ?? []} />
           )}
           {onglet === "etats" && <EtatsFinanciersPanel exercice={exercice} />}
+          {onglet === "flux" && <FluxTresoreriePanel exercice={exercice} />}
           {onglet === "tva" && <TvaPanel exercice={exercice} />}
           {onglet === "dsf" && <DsfPanel exercice={exercice} />}
           {onglet === "plan" && <PlanComptablePanel comptes={comptes ?? []} />}

@@ -36,10 +36,21 @@ import { getExercice } from "./exercices";
  */
 const MOUVEMENTS_COMPTABILISES = ne(cptaEcritures.statut, "BROUILLON");
 
+export type TypeJournal = (typeof cptaJournaux.$inferSelect)["type"];
+
 export type FiltrePeriode = {
   /** Bornes incluses, au format ISO. À défaut, tout l'exercice. */
   dateDebut?: string;
   dateFin?: string;
+  /**
+   * Restreint aux écritures d'un type de journal, ou les exclut.
+   *
+   * Sert au tableau des flux de trésorerie : les à-nouveaux constituent le
+   * bilan d'ouverture, les autres journaux les flux de la période. Les deux
+   * ne doivent pas se mélanger.
+   */
+  typeJournal?: TypeJournal;
+  horsTypeJournal?: TypeJournal;
 };
 
 function conditionsPeriode(exerciceId: number, periode: FiltrePeriode) {
@@ -52,6 +63,12 @@ function conditionsPeriode(exerciceId: number, periode: FiltrePeriode) {
   }
   if (periode.dateFin) {
     conditions.push(lte(cptaEcritures.dateEcriture, periode.dateFin));
+  }
+  if (periode.typeJournal) {
+    conditions.push(eq(cptaJournaux.type, periode.typeJournal));
+  }
+  if (periode.horsTypeJournal) {
+    conditions.push(ne(cptaJournaux.type, periode.horsTypeJournal));
   }
   return conditions;
 }
@@ -74,6 +91,7 @@ export async function getBalance(
     .from(cptaLignesEcriture)
     .innerJoin(cptaEcritures, eq(cptaLignesEcriture.ecritureId, cptaEcritures.id))
     .innerJoin(cptaComptes, eq(cptaLignesEcriture.compteId, cptaComptes.id))
+    .innerJoin(cptaJournaux, eq(cptaEcritures.journalId, cptaJournaux.id))
     .where(and(...conditionsPeriode(exerciceId, periode)));
 
   const lignes = calculerBalance(mouvements satisfies Mouvement[]);

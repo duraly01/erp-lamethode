@@ -204,6 +204,7 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-etats-financiers",
   "cpta-tva",
   "cpta-dsf",
+  "cpta-flux-tresorerie",
 ];
 
 export type Tiers = {
@@ -375,6 +376,46 @@ export function useDsf(exerciceId?: number, retraitements?: RetraitementsSaisis)
           reintegrations: reintegrations || undefined,
           deductions: deductions || undefined,
         })}`,
+      ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tableau des flux de trésorerie (E2)
+// ---------------------------------------------------------------------------
+
+export type LigneFlux = {
+  code: string;
+  libelle: string;
+  /** Flux signé : négatif quand il décaisse. */
+  montant: number;
+  estTotal: boolean;
+  section: "OUVERTURE" | "OPERATIONNEL" | "INVESTISSEMENT" | "FINANCEMENT" | "CLOTURE";
+};
+
+export type FluxTresorerie = {
+  exercice: Exercice;
+  sansANouveaux: boolean;
+  lignes: LigneFlux[];
+  tresorerieOuverture: number;
+  tresorerieCloture: number;
+  tresorerieReconstituee: number;
+  ecart: number;
+  coherent: boolean;
+  comptesHorsTableau: {
+    compteNumero: string;
+    compteLibelle: string;
+    variation: number;
+  }[];
+};
+
+export function useFluxTresorerie(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-flux-tresorerie", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () =>
+      apiGet<FluxTresorerie>(
+        `/api/comptabilite/flux-tresorerie${qs({ exerciceId })}`,
       ),
   });
 }

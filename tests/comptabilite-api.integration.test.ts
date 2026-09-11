@@ -38,6 +38,7 @@ const etatsRoute = await import(
 );
 const tvaRoute = await import("@/app/api/comptabilite/tva/route");
 const dsfRoute = await import("@/app/api/comptabilite/dsf/route");
+const fluxRoute = await import("@/app/api/comptabilite/flux-tresorerie/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -1026,6 +1027,71 @@ describe("DSF et liquidation de l'impôt", () => {
     deconnecte();
     const res = await dsfRoute.GET(
       get(`/api/comptabilite/dsf?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("tableau des flux de trésorerie", () => {
+  it("reconstitue la trésorerie de clôture sur les écritures réelles", async () => {
+    connecte();
+    const res = await fluxRoute.GET(
+      get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(200);
+
+    const flux = await res.json();
+    // C'est l'invariant du tableau, et la preuve que les règles couvrent ce que
+    // l'application produit réellement — contre-passations et lettrages compris.
+    expect(flux.ecart).toBe(0);
+    expect(flux.coherent).toBe(true);
+    expect(flux.comptesHorsTableau).toEqual([]);
+  });
+
+  it("la trésorerie de clôture est celle de la balance", async () => {
+    connecte();
+    const [flux, balance] = await Promise.all([
+      fluxRoute.GET(get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`)).then((r) => r.json()),
+      balanceRoute.GET(get(`/api/comptabilite/balance?exerciceId=${exerciceId}`)).then((r) => r.json()),
+    ]);
+    const tresorerieBalance = balance.lignes
+      .filter((l: { compteNumero: string }) => l.compteNumero.startsWith("5"))
+      .reduce(
+        (t: number, l: { soldeDebiteur: number; soldeCrediteur: number }) =>
+          t + l.soldeDebiteur - l.soldeCrediteur,
+        0,
+      );
+    expect(flux.tresorerieCloture).toBe(tresorerieBalance);
+  });
+
+  it("sans à-nouveaux, part d'une trésorerie nulle et le dit", async () => {
+    connecte();
+    const res = await fluxRoute.GET(
+      get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`),
+    );
+    const flux = await res.json();
+    expect(flux.sansANouveaux).toBe(true);
+    expect(flux.tresorerieOuverture).toBe(0);
+  });
+
+  it("présente les lignes du modèle dans l'ordre, totaux compris", async () => {
+    connecte();
+    const res = await fluxRoute.GET(
+      get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`),
+    );
+    const flux = await res.json();
+    const codes = flux.lignes.map((l: { code: string }) => l.code);
+    expect(codes[0]).toBe("ZA");
+    expect(codes[codes.length - 1]).toBe("ZF");
+    expect(codes).toContain("ZB");
+    expect(codes).toContain("ZC");
+    expect(codes).toContain("ZD");
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    const res = await fluxRoute.GET(
+      get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`),
     );
     expect(res.status).toBe(401);
   });
