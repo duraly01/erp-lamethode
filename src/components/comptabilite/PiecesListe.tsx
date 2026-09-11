@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -47,6 +48,10 @@ const REGLEMENT: Record<StatutReglement, { libelle: string; classe: string }> = 
   REGLEE: { libelle: "Réglée", classe: "bg-success/15 text-success" },
 };
 
+/** Un lien qui s'ouvre dans un onglet, habillé comme un bouton « outline ». */
+const LIEN_BOUTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted";
+
 function francs(numeric: string) {
   return formatMontantAffichage(Math.round(Number(numeric) * 100));
 }
@@ -77,7 +82,7 @@ function DetailPiece({ id, onClose }: { id: number; onClose: () => void }) {
       )}
       {data && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge className={"border-transparent " + COMPTABLE[data.statutComptable].classe}>
               {COMPTABLE[data.statutComptable].libelle}
             </Badge>
@@ -86,6 +91,19 @@ function DetailPiece({ id, onClose }: { id: number; onClose: () => void }) {
                 {REGLEMENT[data.statutReglement].libelle}
               </Badge>
             )}
+            {/* La facture ne s'imprime que pour une vente : un achat, c'est le fournisseur qui l'a émis. */}
+            <div className="ml-auto flex gap-2">
+              {data.type === "FACTURE_VENTE" && (
+                <a href={`/api/comptabilite/pieces/${data.id}/pdf?modele=facture`} target="_blank" rel="noreferrer" className={LIEN_BOUTON}>
+                  <Printer className="h-4 w-4" />
+                  Imprimer la facture
+                </a>
+              )}
+              <a href={`/api/comptabilite/pieces/${data.id}/pdf?modele=comptable`} target="_blank" rel="noreferrer" className={LIEN_BOUTON}>
+                <FileText className="h-4 w-4" />
+                Fiche d&apos;imputation
+              </a>
+            </div>
           </div>
 
           <table className="w-full text-sm">

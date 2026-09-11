@@ -2,8 +2,10 @@ import "server-only";
 import { and, desc, eq, inArray, or, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  contribuables,
   cptaComptes,
   cptaEcritures,
+  cptaExercices,
   cptaJournaux,
   cptaLignesEcriture,
   cptaPieceLignes,
@@ -19,6 +21,7 @@ import {
   genererReglement,
   genererLiquidationTva,
   PieceInvalideError,
+  tvaParTaxe,
   type EcritureGeneree,
   type LignePiece,
   type TaxeApplicable,
@@ -28,6 +31,7 @@ import { getExercice } from "./exercices";
 import { creerBrouillon, validerEcritureEnBase } from "./ecritures";
 import { getDeclarationTva } from "./tva";
 import { getPostesOuverts, lettrerLignes } from "./lettrage";
+import type { PiecePdf } from "@/lib/exports/piece-comptable-pdf";
 
 /**
  * Saisie assistée : une pièce entre, une écriture sort.
@@ -604,4 +608,110 @@ export async function getPiece(id: number, aujourdhui: string) {
     .orderBy(cptaPieceLignes.ordre);
 
   return { ...detail, lignes };
+}
+
+// ---------------------------------------------------------------------------
+// Impression
+// ---------------------------------------------------------------------------
+
+/**
+ * La pièce avec tout ce qu'un document imprimé doit porter : l'émetteur,
+ * le destinataire, la TVA ventilée par taxe telle qu'elle a été
+ * comptabilisée, et l'écriture produite.
+ */
+export async function getPiecePourImpression(id: number, aujourdhui: string): Promise<PiecePdf> {
+  const piece = await getPiece(id, aujourdhui);
+
+  const [ctx] = await db
+    .select({
+      exerciceLibelle: cptaExercices.libelle,
+      contribuable: {
+        nom: contribuables.nom,
+        niu: contribuables.niu,
+        adresse: contribuables.adresseFacturation,
+        telephone: contribuables.telephone,
+        email: contribuables.email,
+        centreImpots: contribuables.centreImpots,
+        regimeFiscal: contribuables.regimeFiscal,
+      },
+      tiers: {
+        code: cptaTiers.code,
+        raisonSociale: cptaTiers.raisonSociale,
+        niu: cptaTiers.niu,
+        adresse: cptaTiers.adresse,
+        telephone: cptaTiers.telephone,
+        email: cptaTiers.email,
+      },
+    })
+    .from(cptaPieces)
+    .innerJoin(cptaExercices, eq(cptaPieces.exerciceId, cptaExercices.id))
+    .innerJoin(contribuables, eq(cptaPieces.contribuableId, contribuables.id))
+    .innerJoin(cptaTiers, eq(cptaPieces.tiersId, cptaTiers.id))
+    .where(eq(cptaPieces.id, id));
+
+  // La TVA se ventile par taxe sur la base cumulée, comme à la génération :
+  // le document porte ce qui a été comptabilisé, pas une somme d'arrondis.
+  const taxes = tvaParTaxe(
+    piece.lignes.map((l) => ({
+      montantHt: parseMontant(l.montantHt),
+      taxe: l.taxeId && l.taux ? { id: l.taxeId, taux: l.taux, libelle: l.taxeLibelle ?? "TVA" } : null,
+    })),
+  ).map((t) => ({ libelle: t.taxe.libelle, taux: String(t.taxe.taux), base: t.base, montant: t.montant }));
+
+  let ecriture: PiecePdf["ecriture"] = null;
+  if (piece.ecritureId) {
+    const [e] = await db
+      .select({
+        numeroPiece: cptaEcritures.numeroPiece,
+        dateEcriture: cptaEcritures.dateEcriture,
+        statut: cptaEcritures.statut,
+        journalCode: cptaJournaux.code,
+        journalLibelle: cptaJournaux.libelle,
+      })
+      .from(cptaEcritures)
+      .innerJoin(cptaJournaux, eq(cptaEcritures.journalId, cptaJournaux.id))
+      .where(eq(cptaEcritures.id, piece.ecritureId));
+    const lignes = await db
+      .select({
+        compteNumero: cptaComptes.numero,
+        compteLibelle: cptaComptes.libelle,
+        libelle: cptaLignesEcriture.libelle,
+        debit: cptaLignesEcriture.debit,
+        credit: cptaLignesEcriture.credit,
+      })
+      .from(cptaLignesEcriture)
+      .innerJoin(cptaComptes, eq(cptaLignesEcriture.compteId, cptaComptes.id))
+      .where(eq(cptaLignesEcriture.ecritureId, piece.ecritureId))
+      .orderBy(cptaLignesEcriture.ordre);
+    ecriture = {
+      ...e,
+      lignes: lignes.map((l) => ({ ...l, debit: parseMontant(l.debit), credit: parseMontant(l.credit) })),
+    };
+  }
+
+  return {
+    type: piece.type,
+    reference: piece.reference,
+    datePiece: piece.datePiece,
+    dateEcheance: piece.dateEcheance,
+    notes: piece.notes,
+    exercice: { libelle: ctx.exerciceLibelle },
+    contribuable: ctx.contribuable,
+    tiers: ctx.tiers,
+    lignes: piece.lignes.map((l) => ({
+      compteNumero: l.compteNumero,
+      compteLibelle: l.compteLibelle,
+      libelle: l.libelle,
+      montantHt: parseMontant(l.montantHt),
+      taxeLibelle: l.taxeLibelle,
+      taux: l.taux,
+    })),
+    taxes,
+    totalHt: parseMontant(piece.totalHt),
+    totalTva: parseMontant(piece.totalTva),
+    totalTtc: parseMontant(piece.totalTtc),
+    statutComptable: piece.statutComptable,
+    statutReglement: piece.statutReglement,
+    ecriture,
+  };
 }

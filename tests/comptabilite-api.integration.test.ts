@@ -52,6 +52,7 @@ const cloturerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/c
 const postesTiersRoute = await import("@/app/api/comptabilite/tiers/[id]/postes-ouverts/route");
 const piecesRoute = await import("@/app/api/comptabilite/pieces/route");
 const pieceRoute = await import("@/app/api/comptabilite/pieces/[id]/route");
+const piecePdfRoute = await import("@/app/api/comptabilite/pieces/[id]/pdf/route");
 const clotureRoute = await import("@/app/api/comptabilite/exercices/[id]/cloture/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
@@ -1919,9 +1920,74 @@ describe("pièces persistées", () => {
     expect(p.statutComptable).toBe("NON_COMPTABILISEE");
   });
 
+  it("s'imprime en facture, affichée dans l'onglet plutôt que téléchargée", async () => {
+    connecte();
+    const res = await piecePdfRoute.GET(get("?modele=facture"), ctx(pieceId));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("content-disposition")).toMatch(/^inline; filename="Facture_P-2026-001\.pdf"/);
+    const buf = Buffer.from(await res.arrayBuffer());
+    expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(buf.length).toBeGreaterThan(1500);
+  });
+
+  it("s'imprime en fiche d'imputation, avec l'écriture", async () => {
+    connecte();
+    const res = await piecePdfRoute.GET(get("?modele=comptable"), ctx(pieceId));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/Imputation_vente_P-2026-001\.pdf/);
+    expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("un achat s'imprime en fiche par défaut, et refuse le modèle facture", async () => {
+    connecte();
+    const achats = await (
+      await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}&type=FACTURE_ACHAT`))
+    ).json();
+    expect(achats.length).toBeGreaterThan(0);
+    const achatId = achats[0].id;
+
+    const fiche = await piecePdfRoute.GET(get(""), ctx(achatId));
+    expect(fiche.status).toBe(200);
+    expect(fiche.headers.get("content-disposition")).toMatch(/Imputation_achat_/);
+
+    const facture = await piecePdfRoute.GET(get("?modele=facture"), ctx(achatId));
+    expect(facture.status).toBe(400);
+    expect((await facture.json()).error.message).toMatch(/fournisseur/);
+  });
+
+  it("la TVA imprimée est celle qui a été comptabilisée, ventilée par taxe", async () => {
+    connecte();
+    const { getPiecePourImpression } = await import("@/lib/services/comptabilite/pieces");
+    const p = await getPiecePourImpression(pieceId, "2026-12-31");
+    // Pains 100 000 taxés à 19,25 %, livraison 20 000 sans taxe.
+    expect(p.taxes).toEqual([expect.objectContaining({ taux: "19.2500", base: 10_000_000, montant: 1_925_000 })]);
+    expect(p.totalTva).toBe(1_925_000);
+    expect(p.contribuable.nom).toBe(NOM_TEMOIN);
+    expect(p.tiers.raisonSociale).toBe("Client des pièces");
+    expect(p.ecriture?.numeroPiece).toMatch(/^VE2026-/);
+    expect(p.ecriture?.lignes.reduce((s, l) => s + l.debit - l.credit, 0)).toBe(0);
+    expect(p.statutReglement).toBe("REGLEE");
+  });
+
+  it("une pièce sans écriture s'imprime quand même, en le disant", async () => {
+    connecte();
+    const toutes = await (await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}`))).json();
+    const orpheline = toutes.find((p: { statutComptable: string }) => p.statutComptable === "NON_COMPTABILISEE");
+    expect(orpheline).toBeDefined();
+    const res = await piecePdfRoute.GET(get("?modele=comptable"), ctx(orpheline.id));
+    expect(res.status).toBe(200);
+  });
+
+  it("l'impression refuse 404 sur une pièce inconnue", async () => {
+    connecte();
+    expect((await piecePdfRoute.GET(get(""), ctx(999_999_999))).status).toBe(404);
+  });
+
   it("refuse 401 sans session", async () => {
     deconnecte();
     expect((await piecesRoute.GET(get(`/api/comptabilite/pieces?exerciceId=${exerciceId}`))).status).toBe(401);
+    expect((await piecePdfRoute.GET(get(""), ctx(pieceId))).status).toBe(401);
   });
 });
 

@@ -75,10 +75,14 @@ function montant(centimes: number) {
  *
  * La taxe se calcule sur le total hors taxes par taux, et non ligne par ligne
  * arrondie : c'est ainsi qu'elle figure sur la facture, et c'est ce qui évite
- * qu'une somme d'arrondis diverge du montant facturé.
+ * qu'une somme d'arrondis diverge du montant facturé. L'impression de la
+ * pièce réutilise cette ventilation, pour que le document porte la TVA qui a
+ * été comptabilisée.
  */
-function tvaParTaxe(lignes: LignePiece[]): { taxe: TaxeApplicable; base: number; montant: number }[] {
-  const bases = new Map<number, { taxe: TaxeApplicable; base: number[] }>();
+export function tvaParTaxe<T extends Pick<TaxeApplicable, "id" | "taux">>(
+  lignes: { montantHt: number; taxe?: T | null }[],
+): { taxe: T; base: number; montant: number }[] {
+  const bases = new Map<number, { taxe: T; base: number[] }>();
   for (const l of lignes) {
     if (!l.taxe) continue;
     const e = bases.get(l.taxe.id);
