@@ -140,3 +140,18 @@ export const tiersCreateSchema = z.object({
   telephone: optionalText(40),
   email: optionalText(200),
 });
+
+// ---------------------------------------------------------------------------
+// Déclaration de TVA
+// ---------------------------------------------------------------------------
+
+/** Période mensuelle « AAAA-MM », format de la table `declarations`. */
+const periodeMensuelle = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Période attendue au format « AAAA-MM ».");
+
+export const tvaQuerySchema = z.object({
+  exerciceId: idPositif,
+  periode: periodeMensuelle,
+});

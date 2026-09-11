@@ -36,6 +36,7 @@ const balanceRoute = await import("@/app/api/comptabilite/balance/route");
 const etatsRoute = await import(
   "@/app/api/comptabilite/etats-financiers/route"
 );
+const tvaRoute = await import("@/app/api/comptabilite/tva/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -697,5 +698,183 @@ describe("états financiers", () => {
       get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe("déclaration de TVA", () => {
+  // Novembre est vierge : les blocs précédents saisissent en mars et septembre.
+  const PERIODE = "2026-11";
+
+  beforeAll(async () => {
+    connecte();
+
+    const comptes = await db
+      .select({ id: schema.cptaComptes.id, numero: schema.cptaComptes.numero })
+      .from(schema.cptaComptes)
+      .where(eq(schema.cptaComptes.contribuableId, contribuableId));
+    const parNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+
+    const [journalVente] = await db
+      .select({ id: schema.cptaJournaux.id })
+      .from(schema.cptaJournaux)
+      .where(
+        and(
+          eq(schema.cptaJournaux.contribuableId, contribuableId),
+          eq(schema.cptaJournaux.code, "VE"),
+        ),
+      );
+
+    async function valider(journalId: number, libelle: string, lignes: unknown[]) {
+      const res = await ecrituresRoute.POST(
+        post("/api/comptabilite/ecritures", {
+          exerciceId,
+          journalId,
+          dateEcriture: "2026-11-15",
+          libelle,
+          lignes,
+        }),
+      );
+      expect(res.status).toBe(201);
+      const e = await res.json();
+      expect((await validerRoute.POST(post(""), ctx(e.id))).status).toBe(200);
+    }
+
+    // Vente au comptant de 1 000 000 HT, TVA 19,25 % : 192 500 collectés.
+    // L'encaissement passe par la banque plutôt que par le compte clients, qui
+    // est collectif et exigerait un tiers sans rien apporter à ce test.
+    await valider(journalVente.id, "Vente du mois", [
+      { compteId: parNumero.get("5211"), debit: "1192500.00" },
+      { compteId: parNumero.get("701"), credit: "1000000.00" },
+      { compteId: parNumero.get("4431"), credit: "192500.00" },
+    ]);
+
+    // Achat de 400 000 HT : 77 000 de TVA déductible.
+    await valider(journalAchatId, "Achat du mois", [
+      { compteId: parNumero.get("601"), debit: "400000.00" },
+      { compteId: parNumero.get("4452"), debit: "77000.00" },
+      { compteId: parNumero.get("401"), tiersId, credit: "477000.00" },
+    ]);
+  });
+
+  it("oppose la TVA collectée à la TVA déductible du mois", async () => {
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`),
+    );
+    expect(res.status).toBe(200);
+
+    const tva = await res.json();
+    expect(tva.totalCollectee).toBe(19_250_000);
+    expect(tva.totalDeductible).toBe(7_700_000);
+    expect(tva.tvaDue).toBe(11_550_000);
+    expect(tva.creditAReporter).toBe(0);
+    expect(tva.dateDebut).toBe("2026-11-01");
+    expect(tva.dateFin).toBe("2026-11-30");
+  });
+
+  it("ne retient que les mouvements de la période", async () => {
+    // Les achats de mars et septembre portent aussi de la TVA déductible : les
+    // reprendre en novembre les redéclarerait.
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=2026-10`),
+    );
+    const tva = await res.json();
+    expect(tva.totalCollectee).toBe(0);
+    expect(tva.totalDeductible).toBe(0);
+    expect(tva.tvaDue).toBe(0);
+  });
+
+  it("détaille les comptes qui composent chaque total", async () => {
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`),
+    );
+    const tva = await res.json();
+
+    expect(tva.collectee.map((l: { compteNumero: string }) => l.compteNumero)).toEqual(["4431"]);
+    expect(tva.deductible.map((l: { compteNumero: string }) => l.compteNumero)).toEqual(["4452"]);
+  });
+
+  it("signale les périodes antérieures non liquidées", async () => {
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`),
+    );
+    const tva = await res.json();
+
+    // Les mois antérieurs portent de la TVA que rien n'a soldée : aucune
+    // écriture de liquidation n'a été passée. Le calcul reste juste pour
+    // novembre, mais le crédit reporté ne peut pas être lu sur un compte que
+    // personne n'a alimenté — la déclaration le dit au lieu de présenter un
+    // montant qui a l'air complet.
+    expect(tva.tvaAnterieureNonLiquidee).not.toBe(0);
+    expect(tva.creditAnterieur).toBe(0);
+  });
+
+  it("refuse une période hors de l'exercice", async () => {
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=2025-11`),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse 422 une période mal formée", async () => {
+    connecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=novembre`),
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("refuse de reporter tant que l'échéance n'existe pas", async () => {
+    connecte();
+    const res = await tvaRoute.POST(
+      post("/api/comptabilite/tva", { exerciceId, periode: PERIODE }),
+    );
+    // Fabriquer l'obligation ici court-circuiterait le régime du contribuable.
+    expect(res.status).toBe(404);
+  });
+
+  it("reporte le montant sur la déclaration existante", async () => {
+    const [decl] = await db
+      .insert(schema.declarations)
+      .values({
+        contribuableId,
+        type: "TVA",
+        periodicite: "MENSUELLE",
+        periode: PERIODE,
+        dateEcheance: "2026-12-15",
+      })
+      .returning();
+    expect(decl.montant).toBeNull();
+
+    connecte();
+    const res = await tvaRoute.POST(
+      post("/api/comptabilite/tva", { exerciceId, periode: PERIODE }),
+    );
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.declaration.montant).toBe("115500.00");
+    // Connaître le montant ne veut pas dire que la déclaration est déposée.
+    expect(body.declaration.statut).toBe("A_FAIRE");
+  });
+
+  it("refuse 403 le report en lecture seule", async () => {
+    connecte(LECTURE_SEULE);
+    const res = await tvaRoute.POST(
+      post("/api/comptabilite/tva", { exerciceId, periode: PERIODE }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    const res = await tvaRoute.GET(
+      get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`),
+    );
+    expect(res.status).toBe(401);
   });
 });
