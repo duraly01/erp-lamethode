@@ -20,6 +20,7 @@ import {
   useComptes,
   useExercices,
   useJournaux,
+  useTaxes,
   useTiers,
   type Exercice,
 } from "./data";
@@ -30,6 +31,7 @@ import {
   PlanComptablePanel,
 } from "./RestitutionsPanels";
 import { LiassePanel } from "./LiassePanel";
+import { PiecesPanel } from "./PiecesPanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
 
@@ -44,6 +46,7 @@ import { DsfPanel } from "./DsfPanel";
 
 type Onglet =
   | "ecritures"
+  | "pieces"
   | "balance"
   | "grand-livre"
   | "liasse"
@@ -53,6 +56,7 @@ type Onglet =
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "ecritures", libelle: "Écritures" },
+  { cle: "pieces", libelle: "Saisie assistée" },
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
   { cle: "liasse", libelle: "Liasse" },
@@ -97,6 +101,7 @@ export function ComptabiliteClient() {
   const { data: comptes } = useComptes(contribuableId);
   const { data: journaux } = useJournaux(contribuableId);
   const { data: tiers } = useTiers(contribuableId);
+  const { data: taxes } = useTaxes(contribuableId);
 
   const [ouvertureOuverte, setOuvertureOuverte] = useState(false);
   const [aCloturer, setACloturer] = useState<Exercice["statut"] | null>(null);
@@ -272,6 +277,15 @@ export function ComptabiliteClient() {
               comptes={comptes ?? []}
               journaux={journaux ?? []}
               tiers={tiers ?? []}
+            />
+          )}
+          {onglet === "pieces" && (
+            <PiecesPanel
+              exercice={exercice}
+              comptes={comptes ?? []}
+              journaux={journaux ?? []}
+              tiers={tiers ?? []}
+              taxes={taxes ?? []}
             />
           )}
           {onglet === "balance" && <BalancePanel exercice={exercice} />}

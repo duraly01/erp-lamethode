@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, FileUp } from "lucide-react";
+import { AlertTriangle, FileUp, BookCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { useCan } from "@/hooks/useCan";
 import { apiSend, messageErreur } from "@/lib/api-client";
 import { formatMontantAffichage } from "@/lib/comptable/money";
 import { formatDateFR } from "@/lib/constants";
-import { useTva, type Exercice, type LigneTva } from "./data";
+import { CLES_A_RAFRAICHIR, useTva, type Exercice, type LigneTva } from "./data";
 
 /**
  * Déclaration de TVA du mois, lue dans les comptes.
@@ -144,6 +144,33 @@ export function TvaPanel({ exercice }: { exercice: Exercice }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [reporte, setReporte] = useState<string | null>(null);
 
+  const [liquidee, setLiquidee] = useState<string | null>(null);
+
+  /**
+   * Passe l'écriture de liquidation du mois, validée d'emblée : c'est une
+   * écriture de clôture de période, pas un brouillon à retravailler. Elle
+   * solde les comptes de TVA, et le calcul de ce mois se relira ensuite à
+   * zéro — c'est le signe qu'elle est passée.
+   */
+  async function liquider() {
+    setEnCours(true);
+    setErreur(null);
+    setLiquidee(null);
+    try {
+      const res = await apiSend<{ ecriture: { numeroPiece: string | null } }>(
+        "/api/comptabilite/tva/liquider",
+        "POST",
+        { exerciceId: exercice.id, periode, valider: true },
+      );
+      for (const cle of CLES_A_RAFRAICHIR) qc.invalidateQueries({ queryKey: [cle] });
+      setLiquidee(res!.ecriture.numeroPiece ?? periode);
+    } catch (e) {
+      setErreur(messageErreur(e));
+    } finally {
+      setEnCours(false);
+    }
+  }
+
   async function reporter() {
     setEnCours(true);
     setErreur(null);
@@ -173,6 +200,7 @@ export function TvaPanel({ exercice }: { exercice: Exercice }) {
             onChange={(e) => {
               setPeriode(e.target.value);
               setReporte(null);
+              setLiquidee(null);
               setErreur(null);
             }}
           >
@@ -194,20 +222,35 @@ export function TvaPanel({ exercice }: { exercice: Exercice }) {
         )}
 
         {can("comptabilite", "update") && (
-          <Button
-            className="ml-auto"
-            disabled={enCours || !data}
-            onClick={reporter}
-          >
-            {enCours ? <Spinner /> : <FileUp className="h-4 w-4" />}
-            Reporter sur la déclaration
-          </Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={enCours || !data || exercice.statut !== "OUVERT"}
+              onClick={liquider}
+            >
+              {enCours ? <Spinner /> : <BookCheck className="h-4 w-4" />}
+              Passer l&apos;écriture de liquidation
+            </Button>
+            <Button disabled={enCours || !data} onClick={reporter}>
+              {enCours ? <Spinner /> : <FileUp className="h-4 w-4" />}
+              Reporter sur la déclaration
+            </Button>
+          </div>
         )}
       </Card>
 
       {erreur && (
         <p className="rounded-md border border-danger/40 bg-danger/5 p-3 text-sm text-danger">
           {erreur}
+        </p>
+      )}
+
+      {liquidee && (
+        <p className="rounded-md border border-success/40 bg-success/10 p-3 text-sm text-success">
+          Écriture de liquidation {liquidee} passée au journal des opérations
+          diverses. Les comptes de TVA du mois sont soldés ; le calcul
+          ci-dessous se relit à zéro, et le mois suivant verra le crédit
+          reporté s&apos;il y en a un.
         </p>
       )}
 

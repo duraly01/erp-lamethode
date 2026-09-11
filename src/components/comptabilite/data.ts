@@ -41,6 +41,8 @@ export type Journal = {
   libelle: string;
   type: string;
   actif: boolean;
+  /** Compte de trésorerie d'un journal de banque ou de caisse. */
+  compteContrepartieId: number | null;
 };
 
 export type Ecriture = {
@@ -495,5 +497,32 @@ export function useNotesAnnexes(exerciceId?: number) {
     enabled: !!exerciceId,
     queryFn: () =>
       apiGet<NotesAnnexes>(`/api/comptabilite/notes-annexes${qs({ exerciceId })}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Saisie assistée (E3)
+// ---------------------------------------------------------------------------
+
+export type Taxe = {
+  id: number;
+  code: string;
+  libelle: string;
+  /** Taux en pourcentage, « 19.2500 ». */
+  taux: string;
+  type: "TVA_COLLECTEE" | "TVA_DEDUCTIBLE" | "RETENUE" | "ACOMPTE";
+  compteId: number | null;
+  compteNumero: string | null;
+  valideDu: string;
+  valideAu: string | null;
+};
+
+export function useTaxes(contribuableId?: number) {
+  return useQuery({
+    queryKey: ["cpta-taxes", contribuableId],
+    enabled: !!contribuableId,
+    staleTime: DUREE_REFERENTIEL,
+    queryFn: () =>
+      apiGet<Taxe[]>(`/api/comptabilite/taxes${qs({ contribuableId })}`),
   });
 }
