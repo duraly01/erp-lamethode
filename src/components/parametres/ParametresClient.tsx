@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { IgsBaremePanel } from "@/components/parametres/IgsBaremePanel";
+import { PaieBaremePanel } from "@/components/parametres/PaieBaremePanel";
 
 type AutomationResult = {
   markedOverdue: number;
@@ -179,13 +180,20 @@ export function ParametresClient() {
         </p>
       )}
       {query.data?.map((p) =>
-        // Le barème IGS a son propre éditeur tabulaire : il est trop
-        // structuré pour l'éditeur JSON générique.
+        // Les barèmes IGS et de paie ont leur propre éditeur : ils sont trop
+        // structurés pour l'éditeur JSON générique.
         p.cle === "igs_bareme" ? (
           <IgsBaremePanel key={p.cle} valeur={p.valeur} editable={editable} />
+        ) : p.cle === "paie_bareme" ? (
+          <PaieBaremePanel key={p.cle} editable={editable} />
         ) : (
           <ParametreCard key={p.cle} param={p} editable={editable} />
         ),
+      )}
+      {/* Une base créée avant la paie n'a pas encore le paramètre : l'éditeur
+          part alors du barème livré, et le premier enregistrement le crée. */}
+      {query.data && !query.data.some((p) => p.cle === "paie_bareme") && (
+        <PaieBaremePanel editable={editable} />
       )}
     </div>
   );
