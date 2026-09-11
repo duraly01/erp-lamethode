@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { isEnRetard, type StatutDeclaration } from "@/lib/constants";
+import { ajouterJours, jourAuCameroun } from "@/lib/dates";
 
 export async function getContribuables() {
   return db.select().from(contribuables).orderBy(asc(contribuables.nom));
@@ -95,18 +96,18 @@ export async function getDashboardSummary() {
     statutCounts[effectiveStatut] = (statutCounts[effectiveStatut] ?? 0) + 1;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const in7Days = new Date(today);
-  in7Days.setDate(in7Days.getDate() + 7);
+  // Comparaisons sur des chaînes « AAAA-MM-JJ » : la fenêtre opposait un
+  // minuit *local* à des échéances que `new Date()` lit en UTC, si bien que
+  // les sept jours affichés n'étaient pas tout à fait les sept jours à venir.
+  const jour = jourAuCameroun();
+  const dans7Jours = ajouterJours(jour, 7);
 
   const prochaines = allDeclarations
     .filter((d) => {
       if (d.statut === "PAYEE" || d.statut === "DEPOSEE" || d.statut === "EXONERE") return false;
-      const echeance = new Date(d.dateEcheance);
-      return echeance >= today && echeance <= in7Days;
+      return d.dateEcheance >= jour && d.dateEcheance <= dans7Jours;
     })
-    .sort((a, b) => new Date(a.dateEcheance).getTime() - new Date(b.dateEcheance).getTime());
+    .sort((a, b) => a.dateEcheance.localeCompare(b.dateEcheance));
 
   const acfBloques = allAcf.filter((a) => a.statut === "BLOQUE");
   const acfEnCours = allAcf.filter((a) => a.statut === "EN_COURS");
@@ -166,7 +167,7 @@ export async function getAnalytics(annee = 2026) {
     .from(penalites)
     .where(eq(penalites.statut, "ESTIMEE"));
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jourAuCameroun();
   const topRetards = await db
     .select({
       nom: contribuables.nom,

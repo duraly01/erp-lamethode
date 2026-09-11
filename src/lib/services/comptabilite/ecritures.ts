@@ -10,6 +10,7 @@ import {
   cptaSequences,
 } from "@/db/schema";
 import { HttpError, badRequest, conflict, notFound } from "@/lib/http";
+import { jourAuCameroun } from "@/lib/dates";
 import { formatMontant, parseMontant } from "@/lib/comptable/money";
 import {
   validerEcriture,
@@ -420,7 +421,7 @@ export async function contrepasserEcriture(
       );
     }
 
-    const date = dateContrepassation ?? aujourdhuiIso();
+    const date = dateContrepassation ?? jourAuCameroun();
     const inversees = construireContrepassation(
       lignes.map<LigneSaisie>((l) => ({
         compteId: l.compteId,
@@ -492,24 +493,6 @@ export async function contrepasserEcriture(
 
     return contre;
   });
-}
-
-/**
- * Date du jour au Cameroun, en « AAAA-MM-JJ ».
- *
- * `toISOString()` donne la date **UTC** : entre 23 h et minuit à Douala, la
- * contre-passation se serait retrouvée datée de la veille — une date d'écriture
- * n'est pas un détail d'affichage, elle situe l'opération dans l'exercice.
- * Le fuseau est nommé explicitement plutôt que laissé à la configuration du
- * serveur, l'hébergement mutualisé étant réglé sur UTC.
- */
-function aujourdhuiIso(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Douala",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 // ---------------------------------------------------------------------------

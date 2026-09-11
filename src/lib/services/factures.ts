@@ -1,6 +1,7 @@
 import "server-only";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { ajouterJours } from "@/lib/dates";
 import {
   contribuables,
   declarations,
@@ -74,12 +75,6 @@ async function delaiPaiementJours(contribuableId?: number): Promise<number> {
   const p = await lireParametre<{ jours?: number }>("facturation_delai_paiement");
   const j = Number(p?.jours);
   return Number.isFinite(j) && j > 0 ? Math.floor(j) : 15;
-}
-
-function ajouteJours(dateIso: string, jours: number): string {
-  const d = new Date(`${dateIso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + jours);
-  return d.toISOString().slice(0, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -275,7 +270,7 @@ export async function creerFacture(input: CreationFacture) {
 
   const dateEcheance =
     input.dateEcheance ??
-    ajouteJours(
+    ajouterJours(
       input.dateEmission,
       await delaiPaiementJours(input.contribuableId),
     );

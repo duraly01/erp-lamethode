@@ -1,4 +1,5 @@
 import { exigeDsf } from "@/lib/igs";
+import { jourAuCameroun } from "@/lib/dates";
 
 // ---------------------------------------------------------------------------
 // Référentiel métier LaMethode Cabinet & Services
@@ -252,10 +253,11 @@ export function formatDateFR(value: string | Date | null | undefined): string {
 
 export function isEnRetard(dateEcheance: string, statut: StatutDeclaration) {
   if (statut === "PAYEE" || statut === "DEPOSEE" || statut === "EXONERE") return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const echeance = new Date(dateEcheance);
-  return echeance.getTime() < today.getTime();
+  // Deux chaînes « AAAA-MM-JJ » se comparent directement. La version
+  // précédente opposait une date *locale* ramenée à minuit à une échéance que
+  // `new Date("2026-06-15")` interprète en UTC : selon le fuseau de la
+  // machine, l'échéance du jour pouvait déjà passer pour dépassée.
+  return dateEcheance < jourAuCameroun();
 }
 
 // Génère la date d'échéance par défaut pour une déclaration mensuelle :

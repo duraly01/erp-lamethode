@@ -96,3 +96,14 @@ describe("isEnRetard", () => {
     expect(isEnRetard("2020-01-01", "EXONERE")).toBe(false);
   });
 });
+
+describe("isEnRetard — le jour se juge à l'heure de Douala", () => {
+  afterAll(() => vi.useRealTimers());
+
+  it("à 23 h 30 UTC on est déjà le lendemain : l'échéance de la veille est dépassée", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-22T23:30:00Z")); // 00 h 30 le 23 à Douala
+    expect(isEnRetard("2026-07-22", "A_FAIRE")).toBe(true);
+    expect(isEnRetard("2026-07-23", "A_FAIRE")).toBe(false);
+  });
+});

@@ -5,6 +5,7 @@ import { contribuables } from "@/db/schema";
 import { getSessionUser } from "@/lib/session";
 import { requirePermission } from "@/lib/rbac";
 import { withApi } from "@/lib/http";
+import { jourAuCameroun } from "@/lib/dates";
 import { buildWorkbookBuffer, styleHeaderRow } from "@/lib/exports/excel";
 import { fileResponse, XLSX_TYPE } from "@/lib/exports/response";
 import { REGIME_FISCAL_LABELS_COURTS, type RegimeFiscal } from "@/lib/constants";
@@ -87,6 +88,6 @@ export const GET = withApi(async (_req: NextRequest) => {
     styleHeaderRow(ws);
   });
 
-  const date = new Date().toISOString().slice(0, 10);
+  const date = jourAuCameroun();
   return fileResponse(buf, `contribuables_${date}.xlsx`, XLSX_TYPE);
 });

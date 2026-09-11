@@ -5,6 +5,8 @@
 // côté serveur, et entièrement testable.
 // ---------------------------------------------------------------------------
 
+import { jourAuCameroun } from "@/lib/dates";
+
 export type CategorieLigne =
   | "HONORAIRES"
   | "IMPOT_TRESOR"
@@ -151,10 +153,15 @@ export function resteAPayer(totalTtc: number, montantRegle: number): number {
   return Math.max(0, arrondi2(totalTtc - montantRegle));
 }
 
-/** Jour calendaire local au format « AAAA-MM-JJ ». */
+/**
+ * Jour calendaire camerounais au format « AAAA-MM-JJ ».
+ *
+ * Reste le point d'entrée de la facturation, mais le jour se calcule
+ * désormais sur le fuseau du cabinet et non sur celui de la machine : la date
+ * d'émission d'une facture doit être la même vue du serveur et du navigateur.
+ */
 export function jourCalendaire(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return jourAuCameroun(d);
 }
 
 /**

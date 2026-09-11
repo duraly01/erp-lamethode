@@ -1,6 +1,7 @@
 import "server-only";
 import { and, asc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { ajouterJours } from "@/lib/dates";
 import {
   cptaComptes,
   cptaEcritures,
@@ -148,7 +149,7 @@ async function getSoldesAvant(
   const conditions = [
     eq(cptaEcritures.exerciceId, exerciceId),
     MOUVEMENTS_COMPTABILISES,
-    lte(cptaEcritures.dateEcriture, veille(date)),
+    lte(cptaEcritures.dateEcriture, ajouterJours(date, -1)),
   ];
   if (compteId) conditions.push(eq(cptaLignesEcriture.compteId, compteId));
 
@@ -171,12 +172,6 @@ async function getSoldesAvant(
       l.soldeDebiteur - l.soldeCrediteur,
     ]),
   );
-}
-
-function veille(dateIso: string): string {
-  const d = new Date(`${dateIso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
 }
 
 /** Plan comptable du contribuable, pour les listes de sélection et l'écran dédié. */

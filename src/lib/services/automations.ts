@@ -9,6 +9,7 @@ import {
   parametres,
 } from "@/db/schema";
 import { DECLARATION_TYPES, formatDateFR } from "@/lib/constants";
+import { ajouterJours, jourAuCameroun } from "@/lib/dates";
 import { computePenalty, DEFAULT_BAREME, type Bareme } from "@/lib/penalty";
 import { createAndDispatchNotification } from "@/lib/notifications";
 import { lireParametreOu } from "@/lib/services/parametres";
@@ -21,7 +22,7 @@ import type { NotificationCanal } from "@/lib/notifications/types";
 const getParam = lireParametreOu;
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return jourAuCameroun();
 }
 
 /**
@@ -78,13 +79,14 @@ export async function generateReminders() {
     "DASHBOARD",
     "EMAIL",
   ]);
-  const base = new Date();
+  const base = today();
   let created = 0;
 
   for (const dd of days) {
-    const target = new Date(base);
-    target.setDate(target.getDate() + dd);
-    const targetStr = target.toISOString().slice(0, 10);
+    // Les échéances sont des jours calendaires : on compte en jours depuis
+    // aujourd'hui au Cameroun, et non en tranches de 24 heures depuis
+    // l'instant présent.
+    const targetStr = ajouterJours(base, dd);
 
     const due = await db
       .select({

@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useCan } from "@/hooks/useCan";
 import { useContribuableOptions } from "@/hooks/useContribuableOptions";
 import { apiSend, messageErreur } from "@/lib/api-client";
+import { jourAuCameroun } from "@/lib/dates";
 import {
   useComptes,
   useExercices,
@@ -314,7 +315,7 @@ export function ComptabiliteClient() {
 
 /** Par défaut l'année civile en cours : c'est l'exercice de la quasi-totalité des dossiers. */
 function anneeParDefaut() {
-  const annee = new Date().getFullYear();
+  const annee = Number(jourAuCameroun().slice(0, 4));
   return {
     libelle: `Exercice ${annee}`,
     dateDebut: `${annee}-01-01`,

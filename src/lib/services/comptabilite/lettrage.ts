@@ -8,6 +8,7 @@ import {
   cptaLignesEcriture,
 } from "@/db/schema";
 import { HttpError, badRequest, conflict, notFound } from "@/lib/http";
+import { jourAuCameroun } from "@/lib/dates";
 import { formatMontant, sommeMontants, parseMontant } from "@/lib/comptable/money";
 import {
   prochainCodeLettrage,
@@ -126,7 +127,7 @@ export async function lettrerLignes(
         compteId,
         tiersId: lignes[0].tiersId,
         code,
-        dateLettrage: new Date().toISOString().slice(0, 10),
+        dateLettrage: jourAuCameroun(),
         montant: formatMontant(montant),
         createdBy: userId,
       })
