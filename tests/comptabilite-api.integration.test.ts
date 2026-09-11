@@ -44,6 +44,10 @@ const venteRoute = await import("@/app/api/comptabilite/pieces/facture-vente/rou
 const achatRoute = await import("@/app/api/comptabilite/pieces/facture-achat/route");
 const reglementRoute = await import("@/app/api/comptabilite/pieces/reglement/route");
 const liquiderRoute = await import("@/app/api/comptabilite/tva/liquider/route");
+const rapprochementsRoute = await import("@/app/api/comptabilite/rapprochements/route");
+const rapprochementRoute = await import("@/app/api/comptabilite/rapprochements/[id]/route");
+const pointerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/pointer/route");
+const cloturerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/cloturer/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -126,6 +130,9 @@ async function nettoyer() {
       await db
         .delete(schema.cptaLettrages)
         .where(eq(schema.cptaLettrages.compteId, c.id));
+      await db
+        .delete(schema.cptaRapprochements)
+        .where(eq(schema.cptaRapprochements.compteId, c.id));
     }
 
     await db
@@ -1411,5 +1418,173 @@ describe("liquidation de la TVA", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.message).toMatch(/Rien à liquider/);
+  });
+});
+
+describe("rapprochement bancaire", () => {
+  let rapprochementId: number;
+  let soldeComptable: number;
+
+  async function lireEtat(id: number) {
+    const res = await rapprochementRoute.GET(get(""), ctx(id));
+    expect(res.status).toBe(200);
+    return res.json();
+  }
+
+  it("refuse un compte qui n'est pas rapprochable", async () => {
+    connecte();
+    const res = await rapprochementsRoute.POST(
+      post("/api/comptabilite/rapprochements", {
+        exerciceId,
+        compteId: compte601,
+        dateRapprochement: "2026-12-31",
+        soldeReleve: "0",
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("ouvre un rapprochement sur le compte de banque, au solde comptable du jour", async () => {
+    connecte();
+    const balance = await (
+      await balanceRoute.GET(get(`/api/comptabilite/balance?exerciceId=${exerciceId}&dateFin=2026-12-31`))
+    ).json();
+    const l = balance.lignes.find((x: { compteNumero: string }) => x.compteNumero === "5211");
+    soldeComptable = l.soldeDebiteur - l.soldeCrediteur;
+
+    // Le relevé annonce le même solde : une fois tout pointé, l'écart sera nul.
+    const res = await rapprochementsRoute.POST(
+      post("/api/comptabilite/rapprochements", {
+        exerciceId,
+        compteId: compte521,
+        dateRapprochement: "2026-12-31",
+        soldeReleve: String(soldeComptable / 100),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const r = await res.json();
+    rapprochementId = r.id;
+    expect(r.cloture).toBe(false);
+    expect(Math.round(Number(r.soldeComptable) * 100)).toBe(soldeComptable);
+  });
+
+  it("n'admet qu'un rapprochement ouvert par compte", async () => {
+    connecte();
+    const res = await rapprochementsRoute.POST(
+      post("/api/comptabilite/rapprochements", {
+        exerciceId,
+        compteId: compte521,
+        dateRapprochement: "2026-12-31",
+        soldeReleve: "0",
+      }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("avant pointage, toutes les lignes sont en suspens et l'écart les reflète", async () => {
+    connecte();
+    const { etat } = await lireEtat(rapprochementId);
+    expect(etat.pointees).toEqual([]);
+    expect(etat.nonPointees.length).toBeGreaterThan(0);
+    // Solde rapproché = solde − débits + crédits non pointés ; le relevé vaut
+    // le solde comptable, donc l'écart est exactement ce qui reste à pointer.
+    expect(etat.ecart).toBe(etat.debitsNonPointes - etat.creditsNonPointes);
+  });
+
+  it("refuse de clôturer tant qu'un écart subsiste", async () => {
+    connecte();
+    const res = await cloturerRoute.POST(post(""), ctx(rapprochementId));
+    expect(res.status).toBe(409);
+  });
+
+  it("refuse de pointer une ligne d'un autre compte", async () => {
+    connecte();
+    const [ligne601] = await db
+      .select({ id: schema.cptaLignesEcriture.id })
+      .from(schema.cptaLignesEcriture)
+      .where(eq(schema.cptaLignesEcriture.compteId, compte601))
+      .limit(1);
+    const res = await pointerRoute.POST(
+      post("", { ligneIds: [ligne601.id], pointer: true }),
+      ctx(rapprochementId),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("pointe toutes les lignes et ramène l'écart à zéro", async () => {
+    connecte();
+    const { etat: avant } = await lireEtat(rapprochementId);
+    const res = await pointerRoute.POST(
+      post("", { ligneIds: avant.nonPointees.map((l: { ligneId: number }) => l.ligneId), pointer: true }),
+      ctx(rapprochementId),
+    );
+    expect(res.status).toBe(200);
+    const etat = await res.json();
+    expect(etat.nonPointees).toEqual([]);
+    expect(etat.soldeRapproche).toBe(soldeComptable);
+    expect(etat.ecart).toBe(0);
+    expect(etat.juste).toBe(true);
+  });
+
+  it("dépointer une ligne rouvre l'écart, et la proposition la retrouve", async () => {
+    connecte();
+    const { etat: avant } = await lireEtat(rapprochementId);
+    const une = avant.pointees[0];
+    await pointerRoute.POST(post("", { ligneIds: [une.ligneId], pointer: false }), ctx(rapprochementId));
+
+    const { etat, proposition } = await lireEtat(rapprochementId);
+    expect(etat.ecart).toBe(une.debit - une.credit);
+    expect(proposition.map((l: { ligneId: number }) => l.ligneId)).toEqual([une.ligneId]);
+
+    // On la repointe pour la suite.
+    await pointerRoute.POST(post("", { ligneIds: [une.ligneId], pointer: true }), ctx(rapprochementId));
+  });
+
+  it("clôture un rapprochement juste, et le fige", async () => {
+    connecte();
+    const res = await cloturerRoute.POST(post(""), ctx(rapprochementId));
+    expect(res.status).toBe(200);
+    expect((await res.json()).cloture).toBe(true);
+
+    const { etat } = await lireEtat(rapprochementId);
+    const refus = await pointerRoute.POST(
+      post("", { ligneIds: [etat.pointees[0].ligneId], pointer: false }),
+      ctx(rapprochementId),
+    );
+    expect(refus.status).toBe(409);
+  });
+
+  it("un rapprochement suivant voit les lignes déjà pointées comme telles", async () => {
+    connecte();
+    const res = await rapprochementsRoute.POST(
+      post("/api/comptabilite/rapprochements", {
+        exerciceId,
+        compteId: compte521,
+        dateRapprochement: "2026-12-31",
+        soldeReleve: String(soldeComptable / 100),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const suivant = await res.json();
+    const { etat } = await lireEtat(suivant.id);
+    // Rien à pointer : le précédent rapprochement a tout retrouvé.
+    expect(etat.nonPointees).toEqual([]);
+    expect(etat.juste).toBe(true);
+
+    // Et une ligne pointée ailleurs ne se repointe pas ici.
+    const refus = await pointerRoute.POST(
+      post("", { ligneIds: [etat.pointees[0].ligneId], pointer: true }),
+      ctx(suivant.id),
+    );
+    expect(refus.status).toBe(409);
+
+    // Nettoyage : on le supprime, il n'a servi qu'à vérifier.
+    expect((await rapprochementRoute.DELETE(post(""), ctx(suivant.id))).status).toBe(204);
+  });
+
+  it("refuse 403 le pointage en lecture seule", async () => {
+    connecte(LECTURE_SEULE);
+    const res = await pointerRoute.POST(post("", { ligneIds: [1], pointer: true }), ctx(rapprochementId));
+    expect(res.status).toBe(403);
   });
 });

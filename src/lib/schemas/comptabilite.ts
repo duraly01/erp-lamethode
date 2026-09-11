@@ -227,3 +227,29 @@ export const reglementSchema = z.object({
 export const liquidationTvaSchema = tvaQuerySchema.extend({
   valider: z.boolean().default(false),
 });
+
+// ---------------------------------------------------------------------------
+// Rapprochement bancaire (E3)
+// ---------------------------------------------------------------------------
+
+export const rapprochementsQuerySchema = z.object({
+  exerciceId: idPositif,
+  compteId: idPositif,
+});
+
+export const rapprochementCreateSchema = z.object({
+  exerciceId: idPositif,
+  compteId: idPositif,
+  dateRapprochement: dateString,
+  /** Le solde du relevé peut être négatif : un découvert se rapproche aussi. */
+  soldeReleve: montantSaisi,
+});
+
+export const rapprochementUpdateSchema = z.object({
+  soldeReleve: montantSaisi,
+});
+
+export const pointageSchema = z.object({
+  ligneIds: z.array(idPositif).min(1).max(500),
+  pointer: z.boolean(),
+});

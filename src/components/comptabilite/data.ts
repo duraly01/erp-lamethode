@@ -208,6 +208,8 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-dsf",
   "cpta-flux-tresorerie",
   "cpta-notes-annexes",
+  "cpta-rapprochements",
+  "cpta-rapprochement",
 ];
 
 export type Tiers = {
@@ -524,5 +526,70 @@ export function useTaxes(contribuableId?: number) {
     staleTime: DUREE_REFERENTIEL,
     queryFn: () =>
       apiGet<Taxe[]>(`/api/comptabilite/taxes${qs({ contribuableId })}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Rapprochement bancaire (E3)
+// ---------------------------------------------------------------------------
+
+export type Rapprochement = {
+  id: number;
+  exerciceId: number;
+  compteId: number;
+  dateRapprochement: string;
+  soldeReleve: string;
+  soldeComptable: string;
+  ecart: string;
+  cloture: boolean;
+};
+
+export type LigneBancaire = {
+  ligneId: number;
+  ecritureId: number;
+  dateEcriture: string;
+  numeroPiece: string | null;
+  libelle: string | null;
+  tiersLibelle: string | null;
+  debit: number;
+  credit: number;
+  pointee: boolean;
+};
+
+export type EtatRapprochement = {
+  soldeComptable: number;
+  soldeReleve: number;
+  debitsNonPointes: number;
+  creditsNonPointes: number;
+  soldeRapproche: number;
+  ecart: number;
+  juste: boolean;
+  nonPointees: LigneBancaire[];
+  pointees: LigneBancaire[];
+};
+
+export type RapprochementDetail = {
+  rapprochement: Rapprochement;
+  compte: { id: number; numero: string; libelle: string };
+  etat: EtatRapprochement;
+  proposition: LigneBancaire[] | null;
+};
+
+export function useRapprochements(exerciceId?: number, compteId?: number) {
+  return useQuery({
+    queryKey: ["cpta-rapprochements", exerciceId, compteId],
+    enabled: !!exerciceId && !!compteId,
+    queryFn: () =>
+      apiGet<Rapprochement[]>(
+        `/api/comptabilite/rapprochements${qs({ exerciceId, compteId })}`,
+      ),
+  });
+}
+
+export function useRapprochement(id?: number) {
+  return useQuery({
+    queryKey: ["cpta-rapprochement", id],
+    enabled: !!id,
+    queryFn: () => apiGet<RapprochementDetail>(`/api/comptabilite/rapprochements/${id}`),
   });
 }

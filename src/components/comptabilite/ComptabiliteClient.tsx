@@ -32,6 +32,7 @@ import {
 } from "./RestitutionsPanels";
 import { LiassePanel } from "./LiassePanel";
 import { PiecesPanel } from "./PiecesPanel";
+import { RapprochementPanel } from "./RapprochementPanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
 
@@ -47,6 +48,7 @@ import { DsfPanel } from "./DsfPanel";
 type Onglet =
   | "ecritures"
   | "pieces"
+  | "banque"
   | "balance"
   | "grand-livre"
   | "liasse"
@@ -57,6 +59,7 @@ type Onglet =
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "ecritures", libelle: "Écritures" },
   { cle: "pieces", libelle: "Saisie assistée" },
+  { cle: "banque", libelle: "Banque" },
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
   { cle: "liasse", libelle: "Liasse" },
@@ -287,6 +290,9 @@ export function ComptabiliteClient() {
               tiers={tiers ?? []}
               taxes={taxes ?? []}
             />
+          )}
+          {onglet === "banque" && (
+            <RapprochementPanel exercice={exercice} comptes={comptes ?? []} />
           )}
           {onglet === "balance" && <BalancePanel exercice={exercice} />}
           {onglet === "grand-livre" && (
