@@ -4,8 +4,13 @@
     {
       "name": "erp-dev",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "node", "scripts/dev-server.mjs"],
-      "port": 3000
+      "runtimeArgs": [
+        "/c",
+        "node",
+        "scripts/dev-server.mjs"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
