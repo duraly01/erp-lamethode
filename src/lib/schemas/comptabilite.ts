@@ -178,3 +178,52 @@ export const dsfQuerySchema = z.object({
   reintegrations: retraitement,
   deductions: retraitement,
 });
+
+// ---------------------------------------------------------------------------
+// Saisie assistée (E3) : pièces génératrices d'écritures
+// ---------------------------------------------------------------------------
+
+/** Un montant saisi obligatoire et strictement positif, en francs. */
+const montantPositif = z.union([z.string(), z.number()]).refine(
+  (v) => {
+    try {
+      return parseMontant(v) > 0;
+    } catch {
+      return false;
+    }
+  },
+  { message: "Montant invalide ou nul." },
+);
+
+const lignePieceSchema = z.object({
+  compteId: idPositif,
+  libelle: optionalText(300),
+  montantHt: montantPositif,
+  taxeId: idPositif.nullable().optional(),
+});
+
+export const factureSchema = z.object({
+  exerciceId: idPositif,
+  journalId: idPositif.nullable().optional(),
+  dateEcriture: dateString,
+  reference: optionalText(120),
+  dateEcheance: dateString.nullable().optional(),
+  tiersId: idPositif,
+  lignes: z.array(lignePieceSchema).min(1).max(200),
+  valider: z.boolean().default(false),
+});
+
+export const reglementSchema = z.object({
+  exerciceId: idPositif,
+  journalId: idPositif,
+  dateEcriture: dateString,
+  reference: optionalText(120),
+  tiersId: idPositif,
+  montant: montantPositif,
+  sens: z.enum(["ENCAISSEMENT", "DECAISSEMENT"]),
+  valider: z.boolean().default(false),
+});
+
+export const liquidationTvaSchema = tvaQuerySchema.extend({
+  valider: z.boolean().default(false),
+});

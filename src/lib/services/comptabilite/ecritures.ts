@@ -41,6 +41,13 @@ export type EntreeEcriture = {
   libelle: string;
   reference?: string | null;
   documentId?: number | null;
+  /**
+   * Module d'où vient l'écriture, et identifiant de la pièce dans ce module.
+   * Une écriture générée garde ainsi le chemin vers ce qui l'a produite ; la
+   * saisie manuelle n'a rien à renseigner.
+   */
+  origine?: (typeof cptaEcritures.$inferInsert)["origine"];
+  origineId?: number | null;
   lignes: Array<{
     compteId: number;
     tiersId?: number | null;
@@ -165,7 +172,8 @@ export async function creerBrouillon(input: EntreeEcriture, userId: number | nul
         reference: input.reference ?? null,
         documentId: input.documentId ?? null,
         statut: "BROUILLON",
-        origine: "MANUELLE",
+        origine: input.origine ?? "MANUELLE",
+        origineId: input.origineId ?? null,
         createdBy: userId,
       })
       .returning();

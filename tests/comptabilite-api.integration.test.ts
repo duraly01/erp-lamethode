@@ -40,6 +40,10 @@ const tvaRoute = await import("@/app/api/comptabilite/tva/route");
 const dsfRoute = await import("@/app/api/comptabilite/dsf/route");
 const fluxRoute = await import("@/app/api/comptabilite/flux-tresorerie/route");
 const notesRoute = await import("@/app/api/comptabilite/notes-annexes/route");
+const venteRoute = await import("@/app/api/comptabilite/pieces/facture-vente/route");
+const achatRoute = await import("@/app/api/comptabilite/pieces/facture-achat/route");
+const reglementRoute = await import("@/app/api/comptabilite/pieces/reglement/route");
+const liquiderRoute = await import("@/app/api/comptabilite/tva/liquider/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -1152,5 +1156,260 @@ describe("notes annexes", () => {
       get(`/api/comptabilite/notes-annexes?exerciceId=${exerciceId}`),
     );
     expect(res.status).toBe(401);
+  });
+});
+
+describe("saisie assistée — pièces génératrices d'écritures", () => {
+  let clientId: number;
+  let compte411: number;
+  let compte701: number;
+  let compte5211: number;
+  let taxeCollectee: number;
+  let taxeDeductible: number;
+  let journalBanque: number;
+
+  beforeAll(async () => {
+    const comptes = await db
+      .select({ id: schema.cptaComptes.id, numero: schema.cptaComptes.numero })
+      .from(schema.cptaComptes)
+      .where(eq(schema.cptaComptes.contribuableId, contribuableId));
+    const parNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+    compte411 = parNumero.get("411")!;
+    compte701 = parNumero.get("701")!;
+    compte5211 = parNumero.get("5211")!;
+
+    const [client] = await db
+      .insert(schema.cptaTiers)
+      .values({
+        contribuableId,
+        code: "C001",
+        raisonSociale: "Client de saisie assistée",
+        types: ["CLIENT"],
+        compteId: compte411,
+      })
+      .returning();
+    clientId = client.id;
+
+    const taxes = await db
+      .select({ id: schema.cptaTaxes.id, code: schema.cptaTaxes.code })
+      .from(schema.cptaTaxes)
+      .where(eq(schema.cptaTaxes.contribuableId, contribuableId));
+    taxeCollectee = taxes.find((t) => t.code === "TVA1925")!.id;
+    taxeDeductible = taxes.find((t) => t.code === "TVA1925D")!.id;
+
+    const [bq] = await db
+      .select({ id: schema.cptaJournaux.id })
+      .from(schema.cptaJournaux)
+      .where(
+        and(
+          eq(schema.cptaJournaux.contribuableId, contribuableId),
+          eq(schema.cptaJournaux.code, "BQ"),
+        ),
+      );
+    journalBanque = bq.id;
+  });
+
+  it("une facture de vente devient une écriture équilibrée au journal des ventes", async () => {
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-05",
+        reference: "V-2026-001",
+        dateEcheance: "2027-01-05",
+        tiersId: clientId,
+        lignes: [{ compteId: compte701, montantHt: "1000000", taxeId: taxeCollectee }],
+      }),
+    );
+    expect(res.status).toBe(201);
+
+    const { ecriture, generee } = await res.json();
+    expect(ecriture.statut).toBe("BROUILLON");
+    expect(ecriture.origine).toBe("FACTURE_VENTE");
+    expect(generee.totalTtc).toBe(119_250_000);
+    expect(generee.totalTva).toBe(19_250_000);
+
+    const lignes = await db
+      .select()
+      .from(schema.cptaLignesEcriture)
+      .where(eq(schema.cptaLignesEcriture.ecritureId, ecriture.id));
+    expect(lignes).toHaveLength(3);
+    const client = lignes.find((l) => l.compteId === compte411)!;
+    expect(client.debit).toBe("1192500.00");
+    expect(client.tiersId).toBe(clientId);
+    expect(client.dateEcheance).toBe("2027-01-05");
+
+    // Validée à part : seule une écriture validée entre dans la TVA du mois,
+    // et la liquidation testée plus bas compte sur celle-ci.
+    expect((await validerRoute.POST(post(""), ctx(ecriture.id))).status).toBe(200);
+  });
+
+  it("peut valider dans la foulée, avec la permission de modification", async () => {
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-06",
+        reference: "V-2026-002",
+        tiersId: clientId,
+        lignes: [{ compteId: compte701, montantHt: "50000", taxeId: null }],
+        valider: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const { ecriture } = await res.json();
+    expect(ecriture.statut).toBe("VALIDEE");
+    expect(ecriture.numeroPiece).toMatch(/^VE2026-/);
+  });
+
+  it("valider exige la permission de modification, pas seulement de création", async () => {
+    connecte([{ ressource: "comptabilite", actions: ["read", "create"] }]);
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-06",
+        tiersId: clientId,
+        lignes: [{ compteId: compte701, montantHt: "1000" }],
+        valider: true,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("une facture d'achat va au journal des achats avec la TVA déductible", async () => {
+    connecte();
+    const res = await achatRoute.POST(
+      post("/api/comptabilite/pieces/facture-achat", {
+        exerciceId,
+        dateEcriture: "2026-12-07",
+        reference: "AF-2026-031",
+        tiersId,
+        lignes: [{ compteId: compte601, montantHt: "400000", taxeId: taxeDeductible }],
+        valider: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const { ecriture, generee } = await res.json();
+    expect(ecriture.origine).toBe("FACTURE_ACHAT");
+    expect(ecriture.numeroPiece).toMatch(/^AC2026-/);
+    expect(generee.totalTtc).toBe(47_700_000);
+  });
+
+  it("refuse un tiers sans compte collectif", async () => {
+    const [orphelin] = await db
+      .insert(schema.cptaTiers)
+      .values({ contribuableId, code: "X999", raisonSociale: "Sans compte", types: [] })
+      .returning();
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-07",
+        tiersId: orphelin.id,
+        lignes: [{ compteId: compte701, montantHt: "1000" }],
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toMatch(/compte collectif/);
+  });
+
+  it("un règlement passe par le compte de contrepartie du journal de trésorerie", async () => {
+    connecte();
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-10",
+        reference: "VIR-12",
+        tiersId: clientId,
+        montant: "1192500",
+        sens: "ENCAISSEMENT",
+        valider: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const { ecriture } = await res.json();
+    expect(ecriture.origine).toBe("REGLEMENT");
+    expect(ecriture.numeroPiece).toMatch(/^BQ2026-/);
+
+    const lignes = await db
+      .select()
+      .from(schema.cptaLignesEcriture)
+      .where(eq(schema.cptaLignesEcriture.ecritureId, ecriture.id));
+    expect(lignes.find((l) => l.compteId === compte5211)!.debit).toBe("1192500.00");
+    expect(lignes.find((l) => l.compteId === compte411)!.credit).toBe("1192500.00");
+  });
+
+  it("refuse un règlement sur un journal qui n'est pas de trésorerie", async () => {
+    connecte();
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalAchatId,
+        dateEcriture: "2026-12-10",
+        tiersId: clientId,
+        montant: "1000",
+        sens: "ENCAISSEMENT",
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse 422 une ligne sans montant", async () => {
+    connecte();
+    const res = await venteRoute.POST(
+      post("/api/comptabilite/pieces/facture-vente", {
+        exerciceId,
+        dateEcriture: "2026-12-07",
+        tiersId: clientId,
+        lignes: [{ compteId: compte701, montantHt: "0" }],
+      }),
+    );
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("liquidation de la TVA", () => {
+  // Décembre : la vente de 1 000 000 HT (TVA 192 500) et l'achat de 400 000 HT
+  // (TVA 77 000) du bloc précédent, seuls mouvements de TVA du mois.
+  const PERIODE = "2026-12";
+
+  it("passe l'écriture qui solde les comptes de TVA et constate la TVA due", async () => {
+    connecte();
+    const res = await liquiderRoute.POST(
+      post("/api/comptabilite/tva/liquider", { exerciceId, periode: PERIODE, valider: true }),
+    );
+    expect(res.status).toBe(201);
+
+    const { ecriture, generee } = await res.json();
+    expect(ecriture.numeroPiece).toMatch(/^OD2026-/);
+    expect(ecriture.dateEcriture).toBe("2026-12-31");
+    expect(generee.totalTva).toBe(11_550_000); // 192 500 − 77 000
+
+    // Après liquidation, la TVA du mois se lit comme déjà soldée.
+    const apres = await (
+      await tvaRoute.GET(get(`/api/comptabilite/tva?exerciceId=${exerciceId}&periode=${PERIODE}`))
+    ).json();
+    expect(apres.totalCollectee).toBe(0);
+    expect(apres.totalDeductible).toBe(0);
+  });
+
+  it("refuse de liquider deux fois la même période", async () => {
+    connecte();
+    const res = await liquiderRoute.POST(
+      post("/api/comptabilite/tva/liquider", { exerciceId, periode: PERIODE }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("refuse une période sans mouvement de TVA", async () => {
+    connecte();
+    const res = await liquiderRoute.POST(
+      post("/api/comptabilite/tva/liquider", { exerciceId, periode: "2026-08" }),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toMatch(/Rien à liquider/);
   });
 });
