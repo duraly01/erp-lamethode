@@ -292,7 +292,7 @@ export function DsfPanel({ exercice }: { exercice: Exercice }) {
               <span>
                 Le bilan de l&apos;exercice n&apos;est pas équilibré : la liasse
                 n&apos;est pas déposable en l&apos;état. Voyez l&apos;onglet
-                États financiers.
+                Liasse.
               </span>
             </p>
           )}

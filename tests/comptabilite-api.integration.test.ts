@@ -39,6 +39,7 @@ const etatsRoute = await import(
 const tvaRoute = await import("@/app/api/comptabilite/tva/route");
 const dsfRoute = await import("@/app/api/comptabilite/dsf/route");
 const fluxRoute = await import("@/app/api/comptabilite/flux-tresorerie/route");
+const notesRoute = await import("@/app/api/comptabilite/notes-annexes/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -1092,6 +1093,47 @@ describe("tableau des flux de trésorerie", () => {
     deconnecte();
     const res = await fluxRoute.GET(
       get(`/api/comptabilite/flux-tresorerie?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("notes annexes", () => {
+  it("rend les notes chiffrées et celles à rédiger", async () => {
+    connecte();
+    const res = await notesRoute.GET(
+      get(`/api/comptabilite/notes-annexes?exerciceId=${exerciceId}`),
+    );
+    expect(res.status).toBe(200);
+
+    const notes = await res.json();
+    expect(notes.notes.length).toBeGreaterThan(20);
+    expect(notes.aRediger.length).toBeGreaterThan(0);
+    expect(notes.sansANouveaux).toBe(true);
+  });
+
+  it("retrouve les totaux des états financiers", async () => {
+    connecte();
+    const [notes, etats] = await Promise.all([
+      notesRoute.GET(get(`/api/comptabilite/notes-annexes?exerciceId=${exerciceId}`)).then((r) => r.json()),
+      etatsRoute.GET(get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`)).then((r) => r.json()),
+    ]);
+    const note = (code: string) => notes.notes.find((n: { definition: { code: string } }) => n.definition.code === code);
+    const poste = (section: { code: string; net?: number; montant?: number }[], code: string) => section.find((p) => p.code === code)!;
+
+    // La note fournisseurs retrouve le poste DJ (+ DI), les achats le poste RA…
+    expect(note("FOURNISSEURS").total.fin).toBe(
+      poste(etats.bilan.passif, "DJ").net! + poste(etats.bilan.passif, "DI").net!,
+    );
+    expect(note("DETTES_FISCALES").total.fin).toBe(poste(etats.bilan.passif, "DK").net);
+    expect(note("TRESORERIE_ACTIF").total.fin).toBe(poste(etats.bilan.actif, "BS").net);
+    expect(note("CHIFFRE_AFFAIRES").total).toBe(poste(etats.resultat.lignes, "XB").montant);
+  });
+
+  it("refuse 401 sans session", async () => {
+    deconnecte();
+    const res = await notesRoute.GET(
+      get(`/api/comptabilite/notes-annexes?exerciceId=${exerciceId}`),
     );
     expect(res.status).toBe(401);
   });

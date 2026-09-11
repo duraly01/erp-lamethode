@@ -205,6 +205,7 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-tva",
   "cpta-dsf",
   "cpta-flux-tresorerie",
+  "cpta-notes-annexes",
 ];
 
 export type Tiers = {
@@ -417,5 +418,61 @@ export function useFluxTresorerie(exerciceId?: number) {
       apiGet<FluxTresorerie>(
         `/api/comptabilite/flux-tresorerie${qs({ exerciceId })}`,
       ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Notes annexes (E2)
+// ---------------------------------------------------------------------------
+
+export type DefinitionNote = {
+  code: string;
+  numero: string;
+  libelle: string;
+  forme: "MOUVEMENTS" | "SOLDES" | "CHARGES_PRODUITS";
+  postes: string[];
+};
+
+export type LigneNoteMouvements = {
+  compteNumero: string;
+  compteLibelle: string;
+  debut: number;
+  augmentations: number;
+  diminutions: number;
+  fin: number;
+};
+
+export type LigneNoteSoldes = {
+  compteNumero: string;
+  compteLibelle: string;
+  debut: number;
+  fin: number;
+  variation: number;
+};
+
+export type LigneNoteChargesProduits = {
+  compteNumero: string;
+  compteLibelle: string;
+  montant: number;
+};
+
+export type Note =
+  | { definition: DefinitionNote; forme: "MOUVEMENTS"; lignes: LigneNoteMouvements[]; total: LigneNoteMouvements }
+  | { definition: DefinitionNote; forme: "SOLDES"; lignes: LigneNoteSoldes[]; total: LigneNoteSoldes }
+  | { definition: DefinitionNote; forme: "CHARGES_PRODUITS"; lignes: LigneNoteChargesProduits[]; total: number };
+
+export type NotesAnnexes = {
+  exercice: Exercice;
+  sansANouveaux: boolean;
+  notes: Note[];
+  aRediger: { numero: string; libelle: string }[];
+};
+
+export function useNotesAnnexes(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-notes-annexes", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () =>
+      apiGet<NotesAnnexes>(`/api/comptabilite/notes-annexes${qs({ exerciceId })}`),
   });
 }
