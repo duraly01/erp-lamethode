@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import type { RolePermission } from "@/lib/permissions";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { SidebarNav } from "@/components/shell/SidebarNav";
@@ -8,7 +9,13 @@ import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { UserMenu } from "@/components/shell/UserMenu";
 import { NotificationBell } from "@/components/shell/NotificationBell";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  permissions,
+}: {
+  children: ReactNode;
+  permissions: RolePermission[];
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -18,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex h-16 items-center border-b border-border px-5">
           <Logo compact />
         </div>
-        <SidebarNav />
+        <SidebarNav permissions={permissions} />
         <div className="border-t border-border p-4 text-xs text-muted-foreground">
           LaMethode SARL · v1.0
         </div>
@@ -42,7 +49,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <SidebarNav onNavigate={() => setMobileOpen(false)} />
+            <SidebarNav
+              permissions={permissions}
+              onNavigate={() => setMobileOpen(false)}
+            />
           </aside>
         </div>
       )}

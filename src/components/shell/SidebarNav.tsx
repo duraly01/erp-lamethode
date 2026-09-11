@@ -2,15 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { NAV_ITEMS } from "@/lib/nav";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, type RolePermission } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * Navigation latérale, filtrée par les permissions de l'utilisateur.
+ *
+ * Les permissions arrivent en props, depuis la mise en page serveur qui les a
+ * déjà chargées pour décider de l'accès. La version précédente les relisait
+ * côté client via `useSession()`, avec deux conséquences : le premier rendu ne
+ * connaissait encore aucune permission, et n'affichait donc que les trois
+ * entrées libres avant de faire apparaître les neuf autres ; et le menu
+ * dépendait d'un contexte React dont l'absence fait *lever* `useSession`, ce
+ * qui n'a rien à faire dans un composant de navigation.
+ */
+export function SidebarNav({
+  permissions,
+  onNavigate,
+}: {
+  permissions: RolePermission[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
-  const { data } = useSession();
-  const permissions = data?.user?.permissions;
 
   const items = NAV_ITEMS.filter(
     (item) =>

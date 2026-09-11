@@ -1,5 +1,9 @@
 import type { RolePermission } from "@/db/schema";
 
+// Ré-exporté d'ici : les composants clients tiennent leurs permissions de ce
+// module, sans avoir à passer par le schéma de base de données.
+export type { RolePermission };
+
 // Module client-safe : uniquement des types (effacés à la compilation) + logique pure.
 
 export type Action = "read" | "create" | "update" | "delete";
