@@ -646,6 +646,22 @@ describe("états financiers", () => {
     expect(etats.rattachementsAConfirmer[0]).toHaveProperty("motif");
   });
 
+  it("rend aussi la présentation du système minimal, cohérente avec la normale", async () => {
+    connecte();
+    const res = await etatsRoute.GET(
+      get(`/api/comptabilite/etats-financiers?exerciceId=${exerciceId}`),
+    );
+    const etats = await res.json();
+
+    // Le SMT regroupe les postes du système normal : mêmes totaux, même
+    // résultat, par construction.
+    expect(etats.smt.equilibre).toBe(true);
+    expect(etats.smt.totalActif).toBe(etats.bilan.totalActif);
+    expect(etats.smt.totalPassif).toBe(etats.bilan.totalPassif);
+    expect(etats.smt.resultatNet).toBe(etats.resultat.resultatNet);
+    expect(etats.smt.actif.map((l: { code: string }) => l.code)).toEqual(["IA", "IB", "IC", "ID", "IZ"]);
+  });
+
   it("sans exercice précédent, la colonne de comparaison est vide et non nulle", async () => {
     connecte();
     const res = await etatsRoute.GET(

@@ -8,6 +8,7 @@ import {
   type LigneResultat,
 } from "@/lib/comptable/etats-financiers";
 import { RATTACHEMENTS_A_CONFIRMER } from "@/lib/comptable/postes-syscohada";
+import { regrouperEnSmt, type EtatsSmt } from "@/lib/comptable/etats-smt";
 import { getBalance, type FiltrePeriode } from "./restitutions";
 import { getExercice } from "./exercices";
 
@@ -37,6 +38,15 @@ export type EtatsFinanciersExercice = {
     lignes: LigneResultatComparee[];
   };
   comptesNonRattaches: CompteNonRattache[];
+  /**
+   * Présentation du système minimal de trésorerie, déduite des mêmes états.
+   *
+   * Toujours calculée, quel que soit le système de l'exercice : c'est l'écran
+   * qui choisit laquelle montrer en premier. Un dossier qui bascule d'un
+   * système à l'autre n'a ainsi rien à recalculer.
+   */
+  smt: EtatsSmt;
+  smtPrecedent: EtatsSmt | null;
   /**
    * Rattachements en attente de validation par l'expert-comptable, repris tels
    * quels du moteur. Ils accompagnent l'état plutôt que sa documentation : un
@@ -85,6 +95,8 @@ export async function getEtatsFinanciers(
       ),
     },
     comptesNonRattaches: etats.comptesNonRattaches,
+    smt: regrouperEnSmt(etats),
+    smtPrecedent: precedent ? regrouperEnSmt(precedent) : null,
     rattachementsAConfirmer: RATTACHEMENTS_A_CONFIRMER,
   };
 }

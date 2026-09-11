@@ -265,9 +265,30 @@ export type RattachementAConfirmer = {
   motif: string;
 };
 
+export type LigneSmt = {
+  code: string;
+  libelle: string;
+  montant: number;
+  estTotal: boolean;
+};
+
+/** Système minimal de trésorerie : les mêmes états, regroupés en quelques lignes. */
+export type EtatsSmt = {
+  actif: LigneSmt[];
+  passif: LigneSmt[];
+  recettes: LigneSmt[];
+  depenses: LigneSmt[];
+  resultatNet: number;
+  totalActif: number;
+  totalPassif: number;
+  equilibre: boolean;
+};
+
 export type EtatsFinanciers = {
   exercice: Exercice;
   exercicePrecedent: { id: number; libelle: string } | null;
+  smt: EtatsSmt;
+  smtPrecedent: EtatsSmt | null;
   bilan: {
     actif: LigneBilan[];
     passif: LigneBilan[];

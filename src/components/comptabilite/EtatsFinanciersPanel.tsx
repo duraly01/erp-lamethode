@@ -8,9 +8,11 @@ import { formatMontantAffichage } from "@/lib/comptable/money";
 import {
   useEtatsFinanciers,
   type EtatsFinanciers,
+  type EtatsSmt,
   type Exercice,
   type LigneBilan,
   type LigneResultat,
+  type LigneSmt,
 } from "./data";
 
 /**
@@ -256,9 +258,121 @@ function SectionResultat({
 }
 
 // ---------------------------------------------------------------------------
+// Système minimal de trésorerie
+// ---------------------------------------------------------------------------
+
+function SectionSmt({
+  titre,
+  lignes,
+  precedentes,
+  libellePrecedent,
+}: {
+  titre: string;
+  lignes: LigneSmt[];
+  precedentes: LigneSmt[] | null;
+  libellePrecedent: string;
+}) {
+  const parCode = new Map((precedentes ?? []).map((l) => [l.code, l.montant]));
+
+  return (
+    <Card className="overflow-x-auto">
+      <h3 className="border-b border-border p-3 font-semibold">{titre}</h3>
+      <table className="w-full text-sm">
+        <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+          <tr>
+            <th className="p-2 text-left font-medium">Réf.</th>
+            <th className="p-2 text-left font-medium">Poste</th>
+            <th className="p-2 text-right font-medium">Exercice</th>
+            <th className="p-2 text-right font-medium">{libellePrecedent}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lignes.map((l) => (
+            <tr
+              key={l.code}
+              className={
+                l.estTotal ? "border-t border-border bg-muted/30 font-semibold" : ""
+              }
+            >
+              <td className="p-2 font-mono text-xs text-muted-foreground">
+                {l.code}
+              </td>
+              <td className={l.estTotal ? "p-2" : "p-2 pl-6"}>{l.libelle}</td>
+              <td className="p-2 text-right tabular-nums">
+                {montant(l.montant, l.estTotal)}
+              </td>
+              <td className="p-2 text-right tabular-nums text-muted-foreground">
+                {montantPrecedent(
+                  precedentes ? (parCode.get(l.code) ?? 0) : null,
+                  l.estTotal,
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function EtatsSmtVue({
+  smt,
+  precedent,
+  libellePrecedent,
+}: {
+  smt: EtatsSmt;
+  precedent: EtatsSmt | null;
+  libellePrecedent: string;
+}) {
+  return (
+    <>
+      <SectionSmt
+        titre="Bilan — Actif"
+        lignes={smt.actif}
+        precedentes={precedent?.actif ?? null}
+        libellePrecedent={libellePrecedent}
+      />
+      <SectionSmt
+        titre="Bilan — Passif"
+        lignes={smt.passif}
+        precedentes={precedent?.passif ?? null}
+        libellePrecedent={libellePrecedent}
+      />
+      <SectionSmt
+        titre="Recettes"
+        lignes={smt.recettes}
+        precedentes={precedent?.recettes ?? null}
+        libellePrecedent={libellePrecedent}
+      />
+      <SectionSmt
+        titre="Dépenses"
+        lignes={smt.depenses}
+        precedentes={precedent?.depenses ?? null}
+        libellePrecedent={libellePrecedent}
+      />
+      <Card className="flex items-center justify-between p-3 text-base font-semibold">
+        <span>
+          {smt.resultatNet >= 0 ? "Excédent de l'exercice" : "Déficit de l'exercice"}
+        </span>
+        <span className="tabular-nums">
+          {formatMontantAffichage(Math.abs(smt.resultatNet))}
+        </span>
+      </Card>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 export function EtatsFinanciersPanel({ exercice }: { exercice: Exercice }) {
   const { data, isLoading } = useEtatsFinanciers(exercice.id);
+
+  // La présentation suit le système de l'exercice : c'est celle qui se dépose.
+  // L'autre reste consultable, pour comparer ou préparer un changement de
+  // système.
+  const [presentation, setPresentation] = useState<"NORMAL" | "SMT">(
+    exercice.systeme,
+  );
 
   if (isLoading) return <Chargement />;
   if (!data) return null;
@@ -267,8 +381,30 @@ export function EtatsFinanciersPanel({ exercice }: { exercice: Exercice }) {
     ? data.exercicePrecedent.libelle
     : "Exercice précédent";
 
+  const autre = presentation === "SMT" ? "NORMAL" : "SMT";
+
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p className="text-muted-foreground">
+          Présentation du{" "}
+          <span className="font-medium text-foreground">
+            {presentation === "SMT"
+              ? "système minimal de trésorerie"
+              : "système normal"}
+          </span>
+          {presentation !== exercice.systeme &&
+            " — l'exercice est déclaré dans l'autre système ; c'est celui-ci qui se dépose."}
+        </p>
+        <button
+          onClick={() => setPresentation(autre)}
+          className="text-primary underline-offset-2 hover:underline"
+        >
+          Voir la présentation du{" "}
+          {autre === "SMT" ? "système minimal" : "système normal"}
+        </button>
+      </div>
+
       {!data.bilan.equilibre && (
         <Alerte>
           Le bilan n&apos;est pas équilibré : l&apos;actif dépasse le passif de{" "}
@@ -311,22 +447,32 @@ export function EtatsFinanciersPanel({ exercice }: { exercice: Exercice }) {
         </p>
       )}
 
-      <SectionBilan
-        titre="Bilan — Actif"
-        lignes={data.bilan.actif}
-        avecColonnesBrutes
-        libellePrecedent={libellePrecedent}
-      />
-      <SectionBilan
-        titre="Bilan — Passif"
-        lignes={data.bilan.passif}
-        avecColonnesBrutes={false}
-        libellePrecedent={libellePrecedent}
-      />
-      <SectionResultat
-        lignes={data.resultat.lignes}
-        libellePrecedent={libellePrecedent}
-      />
+      {presentation === "SMT" ? (
+        <EtatsSmtVue
+          smt={data.smt}
+          precedent={data.smtPrecedent}
+          libellePrecedent={libellePrecedent}
+        />
+      ) : (
+        <>
+          <SectionBilan
+            titre="Bilan — Actif"
+            lignes={data.bilan.actif}
+            avecColonnesBrutes
+            libellePrecedent={libellePrecedent}
+          />
+          <SectionBilan
+            titre="Bilan — Passif"
+            lignes={data.bilan.passif}
+            avecColonnesBrutes={false}
+            libellePrecedent={libellePrecedent}
+          />
+          <SectionResultat
+            lignes={data.resultat.lignes}
+            libellePrecedent={libellePrecedent}
+          />
+        </>
+      )}
     </div>
   );
 }
