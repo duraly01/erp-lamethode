@@ -191,3 +191,42 @@ export function proposerLettrageAutomatique(
 
   return couples;
 }
+
+/**
+ * Propose les postes ouverts d'un tiers qu'un règlement solde exactement.
+ *
+ * Un encaissement client solde des postes débiteurs — les factures qu'il doit ;
+ * un décaissement fournisseur solde des postes créditeurs. On cherche un poste
+ * seul du montant exact, puis une paire dont la somme fait le montant : un
+ * client règle souvent deux factures d'un même virement. Au-delà, la
+ * combinatoire ne guide plus le comptable, elle le noie — et le lettrage
+ * partiel relève de son jugement, pas d'une proposition.
+ *
+ * Les postes reçus doivent déjà être **ceux du tiers** : le compte collectif
+ * mêle tous les clients, et deux clients peuvent devoir le même montant.
+ */
+export function proposerImputationReglement(
+  montant: number,
+  sens: "ENCAISSEMENT" | "DECAISSEMENT",
+  postes: Pick<PosteOuvert, "ligneId" | "solde">[],
+): number[] {
+  if (montant <= 0) return [];
+
+  // Le reste dû dans le sens du règlement : un encaissement regarde ce que le
+  // tiers doit (solde débiteur), un décaissement ce qu'on lui doit.
+  const candidats = postes
+    .map((p) => ({ ligneId: p.ligneId, reste: sens === "ENCAISSEMENT" ? p.solde : -p.solde }))
+    .filter((p) => p.reste > 0);
+
+  const seul = candidats.find((p) => p.reste === montant);
+  if (seul) return [seul.ligneId];
+
+  for (let i = 0; i < candidats.length; i++) {
+    for (let j = i + 1; j < candidats.length; j++) {
+      if (candidats[i].reste + candidats[j].reste === montant) {
+        return [candidats[i].ligneId, candidats[j].ligneId];
+      }
+    }
+  }
+  return [];
+}

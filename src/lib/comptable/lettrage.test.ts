@@ -4,6 +4,7 @@ import {
   validerLettrage,
   postesOuverts,
   proposerLettrageAutomatique,
+  proposerImputationReglement,
   type LigneALettrer,
   type CodeErreurLettrage,
 } from "./lettrage";
@@ -156,5 +157,51 @@ describe("proposerLettrageAutomatique", () => {
       { ...REGLEMENT, lettrage: "A" },
     ]);
     expect(couples).toEqual([]);
+  });
+});
+
+describe("imputation d'un règlement sur les postes d'un tiers", () => {
+  const poste = (ligneId: number, solde: number) => ({
+    ligneId,
+    debit: solde > 0 ? solde : 0,
+    credit: solde < 0 ? -solde : 0,
+    solde,
+  });
+
+  it("retrouve la facture réglée en entier", () => {
+    const postes = [poste(1, 1_192_500_00), poste(2, 50_000_00)];
+    expect(proposerImputationReglement(1_192_500_00, "ENCAISSEMENT", postes)).toEqual([1]);
+  });
+
+  it("retrouve deux factures réglées d'un seul virement", () => {
+    const postes = [poste(1, 300_000_00), poste(2, 50_000_00), poste(3, 120_000_00)];
+    expect(proposerImputationReglement(170_000_00, "ENCAISSEMENT", postes)).toEqual([2, 3]);
+  });
+
+  it("préfère le poste seul à la paire", () => {
+    const postes = [poste(1, 100_000_00), poste(2, 60_000_00), poste(3, 40_000_00)];
+    expect(proposerImputationReglement(100_000_00, "ENCAISSEMENT", postes)).toEqual([1]);
+  });
+
+  it("un décaissement regarde les postes créditeurs, ce qu'on doit au fournisseur", () => {
+    const postes = [poste(1, -502_000_00), poste(2, 10_000_00)];
+    expect(proposerImputationReglement(502_000_00, "DECAISSEMENT", postes)).toEqual([1]);
+    // Le même montant en encaissement ne trouve rien : le poste est au crédit.
+    expect(proposerImputationReglement(502_000_00, "ENCAISSEMENT", postes)).toEqual([]);
+  });
+
+  it("ne propose rien pour un règlement partiel", () => {
+    // 80 000 sur une facture de 100 000 : c'est un acompte, au comptable de
+    // décider, pas à une proposition qui aurait l'air d'une certitude.
+    expect(proposerImputationReglement(80_000_00, "ENCAISSEMENT", [poste(1, 100_000_00)])).toEqual([]);
+  });
+
+  it("ne va pas au-delà de deux postes", () => {
+    const postes = [poste(1, 10_00), poste(2, 20_00), poste(3, 30_00)];
+    expect(proposerImputationReglement(60_00, "ENCAISSEMENT", postes)).toEqual([]);
+  });
+
+  it("ignore un montant nul ou négatif", () => {
+    expect(proposerImputationReglement(0, "ENCAISSEMENT", [poste(1, 0)])).toEqual([]);
   });
 });

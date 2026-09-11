@@ -5,6 +5,7 @@ import {
   cptaComptes,
   cptaEcritures,
   cptaJournaux,
+  cptaLignesEcriture,
   cptaTaxes,
   cptaTiers,
 } from "@/db/schema";
@@ -24,6 +25,7 @@ import { bornesPeriodeMensuelle } from "@/lib/comptable/tva";
 import { getExercice } from "./exercices";
 import { creerBrouillon, validerEcritureEnBase } from "./ecritures";
 import { getDeclarationTva } from "./tva";
+import { getPostesOuverts, lettrerLignes } from "./lettrage";
 
 /**
  * Saisie assistée : une pièce entre, une écriture sort.
@@ -68,6 +70,14 @@ export type EntreeReglement = {
   montant: string | number;
   sens: "ENCAISSEMENT" | "DECAISSEMENT";
   valider?: boolean;
+  /**
+   * Lignes de facture que ce règlement solde, à lettrer avec lui.
+   *
+   * Leur somme doit faire exactement le montant : un lettrage ne se pose que
+   * sur un groupe qui se solde. Exige la validation, un brouillon ne se
+   * lettrant pas.
+   */
+  lettrerAvec?: number[];
 };
 
 // ---------------------------------------------------------------------------
@@ -308,17 +318,48 @@ export async function enregistrerReglement(input: EntreeReglement, userId: numbe
     );
   }
 
+  const montant = parseMontant(input.montant);
+  const aLettrer = input.lettrerAvec ?? [];
+
+  // Tout ce qui pourrait faire échouer le lettrage est vérifié ici, avant que
+  // l'écriture n'existe : un règlement validé puis un lettrage refusé
+  // laisseraient une pièce à moitié traitée, ce qui est pire qu'un refus net.
+  if (aLettrer.length > 0) {
+    if (!input.valider) {
+      throw badRequest("Le lettrage exige de valider le règlement : un brouillon ne se lettre pas.");
+    }
+    const ouverts = await getPostesOuverts(tiers.compteId, tiers.id);
+    const parId = new Map(ouverts.map((p) => [p.ligneId, p]));
+    const inconnus = aLettrer.filter((id) => !parId.has(id));
+    if (inconnus.length > 0) {
+      throw badRequest(
+        "Une ligne à lettrer au moins n'est pas un poste ouvert de ce tiers : déjà lettrée, au brouillon, ou d'un autre tiers.",
+      );
+    }
+    // Le reste dû dans le sens du règlement doit faire exactement le montant.
+    const reste = aLettrer.reduce((t, id) => {
+      const s = parId.get(id)!.solde;
+      return t + (input.sens === "ENCAISSEMENT" ? s : -s);
+    }, 0);
+    if (reste !== montant) {
+      throw badRequest(
+        "Les factures désignées ne se soldent pas par ce règlement : leur reste dû ne fait pas le montant réglé. " +
+          "Un règlement partiel se lettre plus tard, avec le complément.",
+      );
+    }
+  }
+
   const generee = generer(() =>
     genererReglement({
       tiers,
       compteTresorerieId: journal.compteContrepartieId!,
-      montant: parseMontant(input.montant),
+      montant,
       sens: input.sens,
       reference: input.reference,
     }),
   );
 
-  return enregistrer(
+  const resultat = await enregistrer(
     generee,
     {
       exerciceId: input.exerciceId,
@@ -329,6 +370,22 @@ export async function enregistrerReglement(input: EntreeReglement, userId: numbe
     },
     userId,
   );
+
+  if (aLettrer.length === 0) return { ...resultat, lettrage: null };
+
+  // La ligne du règlement sur le compte du tiers, à lettrer avec les factures.
+  const [ligneTiers] = await db
+    .select({ id: cptaLignesEcriture.id })
+    .from(cptaLignesEcriture)
+    .where(
+      and(
+        eq(cptaLignesEcriture.ecritureId, resultat.ecriture.id),
+        eq(cptaLignesEcriture.compteId, tiers.compteId),
+      ),
+    );
+  const lettrage = await lettrerLignes(tiers.compteId, [ligneTiers.id, ...aLettrer], userId);
+
+  return { ...resultat, lettrage };
 }
 
 // ---------------------------------------------------------------------------

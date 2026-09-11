@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 
 /**
  * Tests d'intégration de l'API de comptabilité générale.
@@ -48,6 +48,7 @@ const rapprochementsRoute = await import("@/app/api/comptabilite/rapprochements/
 const rapprochementRoute = await import("@/app/api/comptabilite/rapprochements/[id]/route");
 const pointerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/pointer/route");
 const cloturerRoute = await import("@/app/api/comptabilite/rapprochements/[id]/cloturer/route");
+const postesTiersRoute = await import("@/app/api/comptabilite/tiers/[id]/postes-ouverts/route");
 
 const NOM_TEMOIN = "ZZ TEST API COMPTABILITE";
 
@@ -1586,5 +1587,170 @@ describe("rapprochement bancaire", () => {
     connecte(LECTURE_SEULE);
     const res = await pointerRoute.POST(post("", { ligneIds: [1], pointer: true }), ctx(rapprochementId));
     expect(res.status).toBe(403);
+  });
+});
+
+describe("lettrage à la saisie d'un règlement", () => {
+  let clientId: number;
+  let compte701: number;
+  let journalBanque: number;
+  let facture1: number; // ligne 411 de 240 000
+  let facture2: number; // ligne 411 de 60 000
+
+  beforeAll(async () => {
+    connecte();
+    const comptes = await db
+      .select({ id: schema.cptaComptes.id, numero: schema.cptaComptes.numero })
+      .from(schema.cptaComptes)
+      .where(eq(schema.cptaComptes.contribuableId, contribuableId));
+    const parNumero = new Map(comptes.map((c) => [c.numero, c.id]));
+    compte701 = parNumero.get("701")!;
+
+    const [client] = await db
+      .insert(schema.cptaTiers)
+      .values({
+        contribuableId,
+        code: "C-LETTR",
+        raisonSociale: "Client du lettrage",
+        types: ["CLIENT"],
+        compteId: parNumero.get("411")!,
+      })
+      .returning();
+    clientId = client.id;
+
+    const [bq] = await db
+      .select({ id: schema.cptaJournaux.id })
+      .from(schema.cptaJournaux)
+      .where(and(eq(schema.cptaJournaux.contribuableId, contribuableId), eq(schema.cptaJournaux.code, "BQ")));
+    journalBanque = bq.id;
+
+    // Deux factures sans TVA, validées : 240 000 et 60 000.
+    async function facturer(reference: string, montant: string) {
+      const res = await venteRoute.POST(
+        post("/api/comptabilite/pieces/facture-vente", {
+          exerciceId,
+          dateEcriture: "2026-12-12",
+          reference,
+          tiersId: clientId,
+          lignes: [{ compteId: compte701, montantHt: montant }],
+          valider: true,
+        }),
+      );
+      expect(res.status).toBe(201);
+      const { ecriture } = await res.json();
+      const [ligne] = await db
+        .select({ id: schema.cptaLignesEcriture.id })
+        .from(schema.cptaLignesEcriture)
+        .where(
+          and(
+            eq(schema.cptaLignesEcriture.ecritureId, ecriture.id),
+            eq(schema.cptaLignesEcriture.compteId, parNumero.get("411")!),
+          ),
+        );
+      return ligne.id;
+    }
+    facture1 = await facturer("L-1", "240000");
+    facture2 = await facturer("L-2", "60000");
+  });
+
+  it("liste les postes ouverts du tiers, et de lui seul", async () => {
+    connecte();
+    const res = await postesTiersRoute.GET(get(""), ctx(clientId));
+    expect(res.status).toBe(200);
+    const postes = await res.json();
+    const ids = postes.map((p: { ligneId: number }) => p.ligneId);
+    expect(ids).toContain(facture1);
+    expect(ids).toContain(facture2);
+    // Les factures de l'autre client (bloc saisie assistée) n'y sont pas.
+    expect(postes.every((p: { tiersId: number }) => p.tiersId === clientId)).toBe(true);
+  });
+
+  it("refuse de lettrer un brouillon", async () => {
+    connecte();
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-15",
+        tiersId: clientId,
+        montant: "240000",
+        sens: "ENCAISSEMENT",
+        lettrerAvec: [facture1],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/brouillon/);
+  });
+
+  it("refuse un règlement qui ne solde pas les factures désignées, sans rien écrire", async () => {
+    connecte();
+    const avant = await db.select({ id: schema.cptaEcritures.id }).from(schema.cptaEcritures);
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-15",
+        tiersId: clientId,
+        montant: "200000",
+        sens: "ENCAISSEMENT",
+        valider: true,
+        lettrerAvec: [facture1],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/ne se soldent pas/);
+    // Le refus est net : aucune écriture n'a été créée entre-temps.
+    const apres = await db.select({ id: schema.cptaEcritures.id }).from(schema.cptaEcritures);
+    expect(apres.length).toBe(avant.length);
+  });
+
+  it("lettre le règlement avec les deux factures qu'il solde d'un seul virement", async () => {
+    connecte();
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-15",
+        reference: "VIR-300",
+        tiersId: clientId,
+        montant: "300000",
+        sens: "ENCAISSEMENT",
+        valider: true,
+        lettrerAvec: [facture1, facture2],
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.ecriture.statut).toBe("VALIDEE");
+    expect(body.lettrage).not.toBeNull();
+    expect(body.lettrage.code).toMatch(/^[A-Z]+$/);
+
+    // Les trois lignes portent le même code, et le tiers n'a plus de poste ouvert.
+    const lignes = await db
+      .select({ id: schema.cptaLignesEcriture.id, lettrage: schema.cptaLignesEcriture.lettrage })
+      .from(schema.cptaLignesEcriture)
+      .where(inArray(schema.cptaLignesEcriture.id, [facture1, facture2]));
+    expect(lignes.map((l) => l.lettrage)).toEqual([body.lettrage.code, body.lettrage.code]);
+
+    const ouverts = await (await postesTiersRoute.GET(get(""), ctx(clientId))).json();
+    expect(ouverts).toEqual([]);
+  });
+
+  it("refuse une ligne déjà lettrée", async () => {
+    connecte();
+    const res = await reglementRoute.POST(
+      post("/api/comptabilite/pieces/reglement", {
+        exerciceId,
+        journalId: journalBanque,
+        dateEcriture: "2026-12-16",
+        tiersId: clientId,
+        montant: "240000",
+        sens: "ENCAISSEMENT",
+        valider: true,
+        lettrerAvec: [facture1],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/poste ouvert/);
   });
 });

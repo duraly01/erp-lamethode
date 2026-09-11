@@ -170,8 +170,11 @@ export async function delettrer(compteId: number, code: string) {
  *
  * C'est la liste sur laquelle s'appuient la relance client et la balance âgée.
  */
-export async function getPostesOuverts(compteId: number) {
-  const lignes = await chargerLignesDuCompte(compteId);
+export async function getPostesOuverts(compteId: number, tiersId?: number) {
+  const toutes = await chargerLignesDuCompte(compteId);
+  // Sur un compte collectif, les postes d'un tiers sont les seuls qu'un
+  // règlement de ce tiers puisse solder.
+  const lignes = tiersId ? toutes.filter((l) => l.tiersId === tiersId) : toutes;
   const ouverts = new Map(
     postesOuverts(
       lignes.map((l) => ({

@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useCan } from "@/hooks/useCan";
 import { apiSend, messageErreur } from "@/lib/api-client";
 import { parseMontant, formatMontantAffichage } from "@/lib/comptable/money";
+import { proposerImputationReglement } from "@/lib/comptable/lettrage";
 import {
   genererFactureVente,
   genererFactureAchat,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/comptable/generation";
 import {
   CLES_A_RAFRAICHIR,
+  usePostesOuvertsTiers,
   type Compte,
   type Exercice,
   type Journal,
@@ -86,6 +88,10 @@ export function PiecesPanel({
   const [journalId, setJournalId] = useState("");
   const [montant, setMontant] = useState("");
   const [sens, setSens] = useState<"ENCAISSEMENT" | "DECAISSEMENT">("ENCAISSEMENT");
+  /** Factures que le règlement solde, cochées par le comptable ou proposées. */
+  const [aLettrer, setALettrer] = useState<number[]>([]);
+  /** Vrai dès que le comptable a touché aux cases pour le montant en cours : la proposition n'écrase plus son choix. */
+  const [choixManuel, setChoixManuel] = useState(false);
 
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -120,6 +126,51 @@ export function PiecesPanel({
     const typeTaxe = type === "VENTE" ? "TVA_COLLECTEE" : "TVA_DEDUCTIBLE";
     return taxes.filter((t) => t.type === typeTaxe && t.compteId && enVigueur(t, date));
   }, [taxes, type, date]);
+
+  // --- Lettrage à la saisie ---------------------------------------------------
+
+  const { data: postesTiers } = usePostesOuvertsTiers(
+    type === "REGLEMENT" && tiersId ? Number(tiersId) : undefined,
+  );
+
+  // Les postes que ce règlement pourrait solder : ceux du bon sens.
+  const postesImputables = useMemo(
+    () =>
+      (postesTiers ?? []).filter((p) => (sens === "ENCAISSEMENT" ? p.solde > 0 : p.solde < 0)),
+    [postesTiers, sens],
+  );
+
+  // Ce qu'un montant solde exactement, proposé tant que le comptable n'a pas
+  // fait son propre choix. Le calcul est dérivé, pas posé par un effet : il
+  // suit le montant tapé sans jamais avoir un rendu de retard.
+  const proposition = useMemo(() => {
+    try {
+      return proposerImputationReglement(parseMontant(montant || 0), sens, postesImputables);
+    } catch {
+      return [];
+    }
+  }, [montant, sens, postesImputables]);
+  const selection = choixManuel ? aLettrer : proposition;
+
+  const resteSelectionne = useMemo(
+    () =>
+      postesImputables
+        .filter((p) => selection.includes(p.ligneId))
+        .reduce((t, p) => t + Math.abs(p.solde), 0),
+    [postesImputables, selection],
+  );
+  let montantCentimes = 0;
+  try {
+    montantCentimes = parseMontant(montant || 0);
+  } catch {
+    montantCentimes = 0;
+  }
+  const lettrageSolde = selection.length > 0 && resteSelectionne === montantCentimes;
+
+  function basculerPoste(ligneId: number) {
+    setChoixManuel(true);
+    setALettrer((cur) => (cur.includes(ligneId) ? cur.filter((x) => x !== ligneId) : [...cur, ligneId]));
+  }
 
   // --- Prévisualisation -------------------------------------------------------
 
@@ -183,6 +234,9 @@ export function PiecesPanel({
     setDateEcheance("");
     setLignes([LIGNE_VIDE]);
     setMontant("");
+    setALettrer([]);
+    setChoixManuel(false);
+    qc.invalidateQueries({ queryKey: ["cpta-postes-tiers"] });
   }
 
   async function enregistrer(valider: boolean) {
@@ -202,7 +256,14 @@ export function PiecesPanel({
           ? await apiSend<{ ecriture: { numeroPiece: string | null; statut: string } }>(
               "/api/comptabilite/pieces/reglement",
               "POST",
-              { ...commun, journalId: Number(journalId), montant, sens },
+              {
+                ...commun,
+                journalId: Number(journalId),
+                montant,
+                sens,
+                // Le lettrage ne se pose que sur un règlement validé et qui solde.
+                lettrerAvec: valider && lettrageSolde ? selection : [],
+              },
             )
           : await apiSend<{ ecriture: { numeroPiece: string | null; statut: string } }>(
               `/api/comptabilite/pieces/${type === "VENTE" ? "facture-vente" : "facture-achat"}`,
@@ -223,9 +284,11 @@ export function PiecesPanel({
 
       for (const cle of CLES_A_RAFRAICHIR) qc.invalidateQueries({ queryKey: [cle] });
       const e = res!.ecriture;
+      const l = (res as { lettrage?: { code: string } | null }).lettrage;
+      const quoi = selection.length > 1 ? "les factures" : "la facture";
       setSucces(
         e.statut === "VALIDEE"
-          ? `Écriture ${e.numeroPiece} validée.`
+          ? `Écriture ${e.numeroPiece} validée${l ? `, lettrée sous le code ${l.code} avec ${quoi} qu'elle solde` : ""}.`
           : "Brouillon enregistré : il attend sa validation dans l'onglet Écritures.",
       );
       reinitialiser();
@@ -308,7 +371,15 @@ export function PiecesPanel({
             <Label htmlFor="piece-tiers">
               {type === "VENTE" ? "Client" : type === "ACHAT" ? "Fournisseur" : "Tiers"}
             </Label>
-            <Select id="piece-tiers" value={tiersId} onChange={(e) => setTiersId(e.target.value)}>
+            <Select
+              id="piece-tiers"
+              value={tiersId}
+              onChange={(e) => {
+                setTiersId(e.target.value);
+                setALettrer([]);
+                setChoixManuel(false);
+              }}
+            >
               <option value="">— choisir —</option>
               {tiersImputables.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -449,7 +520,11 @@ export function PiecesPanel({
               <Select
                 id="piece-sens"
                 value={sens}
-                onChange={(e) => setSens(e.target.value as typeof sens)}
+                onChange={(e) => {
+                  setSens(e.target.value as typeof sens);
+                  setALettrer([]);
+                  setChoixManuel(false);
+                }}
               >
                 <option value="ENCAISSEMENT">Encaissement (le tiers paie)</option>
                 <option value="DECAISSEMENT">Décaissement (on paie le tiers)</option>
@@ -462,9 +537,75 @@ export function PiecesPanel({
                 inputMode="decimal"
                 className="text-right"
                 value={montant}
-                onChange={(e) => setMontant(e.target.value)}
+                onChange={(e) => {
+                  setMontant(e.target.value);
+                  // Un nouveau montant est une nouvelle question : la
+                  // proposition reprend la main, le choix manuel ne valait que
+                  // pour le montant précédent.
+                  setChoixManuel(false);
+                  setALettrer([]);
+                }}
               />
             </div>
+          </div>
+        )}
+
+        {type === "REGLEMENT" && tiersId && postesTiers && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">
+              Factures que ce règlement solde
+              {postesImputables.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  cochez ce qu&apos;il solde — les montants exacts sont proposés d&apos;eux-mêmes
+                </span>
+              )}
+            </h4>
+            {postesImputables.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun poste ouvert pour ce tiers dans ce sens : le règlement sera enregistré sans lettrage.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody>
+                  {postesImputables.map((p) => (
+                    <tr key={p.ligneId} className="border-t border-border">
+                      <td className="w-8 p-2 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Lettrer avec ${p.numeroPiece ?? p.ligneId}`}
+                          checked={selection.includes(p.ligneId)}
+                          onChange={() => basculerPoste(p.ligneId)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </td>
+                      <td className="p-2 whitespace-nowrap">{p.dateEcriture}</td>
+                      <td className="p-2 font-mono text-xs">{p.numeroPiece ?? "—"}</td>
+                      <td className="p-2">{p.libelle}</td>
+                      <td className="p-2 whitespace-nowrap text-muted-foreground">
+                        {p.dateEcheance ? `éch. ${p.dateEcheance}` : ""}
+                      </td>
+                      <td className="p-2 text-right tabular-nums">
+                        {formatMontantAffichage(Math.abs(p.solde))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {selection.length > 0 && (
+                  <tfoot className="border-t-2 border-border font-medium">
+                    <tr>
+                      <td className="p-2" colSpan={5}>
+                        {lettrageSolde
+                          ? `Le règlement solde ${selection.length > 1 ? "ces factures" : "cette facture"} : il sera lettré à la validation.`
+                          : "La sélection ne fait pas le montant réglé — un règlement partiel se lettre plus tard, avec son complément."}
+                      </td>
+                      <td className={"p-2 text-right tabular-nums" + (lettrageSolde ? " text-success" : " text-warning")}>
+                        {formatMontantAffichage(resteSelectionne)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
           </div>
         )}
       </Card>
@@ -537,7 +678,16 @@ export function PiecesPanel({
 
       <div className="flex justify-end gap-2">
         {can("comptabilite", "create") && (
-          <Button variant="outline" disabled={!pret || enCours} onClick={() => enregistrer(false)}>
+          <Button
+            variant="outline"
+            disabled={!pret || enCours || (type === "REGLEMENT" && selection.length > 0)}
+            title={
+              type === "REGLEMENT" && selection.length > 0
+                ? "Un brouillon ne se lettre pas : validez, ou décochez les factures."
+                : undefined
+            }
+            onClick={() => enregistrer(false)}
+          >
             {enCours ? <Spinner /> : <Save className="h-4 w-4" />}
             Enregistrer le brouillon
           </Button>

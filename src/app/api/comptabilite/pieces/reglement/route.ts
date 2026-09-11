@@ -8,7 +8,8 @@ import { writeAudit, clientIp } from "@/lib/audit";
 
 /**
  * Règlement d'un tiers sur un journal de banque ou de caisse. Le compte de
- * trésorerie est celui du journal : il n'est pas demandé.
+ * trésorerie est celui du journal : il n'est pas demandé. Avec `lettrerAvec`,
+ * le règlement est lettré d'emblée avec les factures qu'il solde.
  */
 export const POST = withApi(async (req: NextRequest) => {
   const body = reglementSchema.parse(await req.json());
@@ -18,16 +19,23 @@ export const POST = withApi(async (req: NextRequest) => {
     body.valider ? "update" : "create",
   );
 
-  const { ecriture, generee } = await enregistrerReglement(body, user.id);
+  const { ecriture, generee, lettrage } = await enregistrerReglement(body, user.id);
 
   await writeAudit({
     userId: user.id,
     action: "CREATE",
     entite: "cpta_ecritures",
     entiteId: ecriture.id,
-    diff: { apres: { origine: "REGLEMENT", sens: body.sens, montant: generee.totalTtc } },
+    diff: {
+      apres: {
+        origine: "REGLEMENT",
+        sens: body.sens,
+        montant: generee.totalTtc,
+        lettrage: lettrage?.code ?? null,
+      },
+    },
     ip: clientIp(req),
   });
 
-  return created({ ecriture, generee });
+  return created({ ecriture, generee, lettrage });
 });

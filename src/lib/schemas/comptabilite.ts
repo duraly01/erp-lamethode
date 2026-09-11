@@ -222,6 +222,8 @@ export const reglementSchema = z.object({
   montant: montantPositif,
   sens: z.enum(["ENCAISSEMENT", "DECAISSEMENT"]),
   valider: z.boolean().default(false),
+  /** Postes du tiers que ce règlement solde, à lettrer avec lui. */
+  lettrerAvec: z.array(idPositif).max(50).default([]),
 });
 
 export const liquidationTvaSchema = tvaQuerySchema.extend({

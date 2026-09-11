@@ -210,6 +210,7 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-notes-annexes",
   "cpta-rapprochements",
   "cpta-rapprochement",
+  "cpta-postes-tiers",
 ];
 
 export type Tiers = {
@@ -591,5 +592,32 @@ export function useRapprochement(id?: number) {
     queryKey: ["cpta-rapprochement", id],
     enabled: !!id,
     queryFn: () => apiGet<RapprochementDetail>(`/api/comptabilite/rapprochements/${id}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Postes ouverts d'un tiers (lettrage à la saisie d'un règlement)
+// ---------------------------------------------------------------------------
+
+export type PosteOuvertTiers = {
+  ligneId: number;
+  compteId: number;
+  tiersId: number | null;
+  debit: string;
+  credit: string;
+  lettrage: string | null;
+  dateEcriture: string;
+  numeroPiece: string | null;
+  libelle: string;
+  dateEcheance: string | null;
+  /** Reste dû en centimes, positif au débit (le tiers doit), négatif au crédit. */
+  solde: number;
+};
+
+export function usePostesOuvertsTiers(tiersId?: number) {
+  return useQuery({
+    queryKey: ["cpta-postes-tiers", tiersId],
+    enabled: !!tiersId,
+    queryFn: () => apiGet<PosteOuvertTiers[]>(`/api/comptabilite/tiers/${tiersId}/postes-ouverts`),
   });
 }
