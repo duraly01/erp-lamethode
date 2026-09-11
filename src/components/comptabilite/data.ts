@@ -201,6 +201,7 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-ecriture",
   "cpta-balance",
   "cpta-grand-livre",
+  "cpta-etats-financiers",
 ];
 
 export type Tiers = {
@@ -218,5 +219,71 @@ export function useTiers(contribuableId?: number) {
     staleTime: DUREE_REFERENTIEL,
     queryFn: () =>
       apiGet<Tiers[]>(`/api/comptabilite/tiers${qs({ contribuableId })}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// États financiers (E2)
+//
+// Les montants sont en centimes entiers, comme la balance dont ils se
+// déduisent. La colonne N-1 vaut `null` quand aucun exercice précédent n'est
+// rattaché : c'est différent de zéro, qui affirmerait qu'il n'y avait rien.
+// ---------------------------------------------------------------------------
+
+export type LigneBilan = {
+  code: string;
+  libelle: string;
+  niveau?: 1 | 2;
+  estTotal: boolean;
+  brut: number;
+  amortissements: number;
+  net: number;
+  netPrecedent: number | null;
+};
+
+export type LigneResultat = {
+  code: string;
+  libelle: string;
+  estTotal: boolean;
+  montant: number;
+  montantPrecedent: number | null;
+};
+
+export type CompteNonRattache = {
+  compteNumero: string;
+  compteLibelle: string;
+  solde: number;
+};
+
+export type RattachementAConfirmer = {
+  prefixe: string;
+  poste: string;
+  motif: string;
+};
+
+export type EtatsFinanciers = {
+  exercice: Exercice;
+  exercicePrecedent: { id: number; libelle: string } | null;
+  bilan: {
+    actif: LigneBilan[];
+    passif: LigneBilan[];
+    totalActif: number;
+    totalPassif: number;
+    equilibre: boolean;
+    ecart: number;
+  };
+  resultat: { lignes: LigneResultat[]; resultatNet: number };
+  comptesNonRattaches: CompteNonRattache[];
+  rattachementsAConfirmer: RattachementAConfirmer[];
+};
+
+export function useEtatsFinanciers(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-etats-financiers", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () =>
+      apiGet<EtatsFinanciers>(
+        `/api/comptabilite/etats-financiers${qs({ exerciceId })}`,
+      ),
   });
 }

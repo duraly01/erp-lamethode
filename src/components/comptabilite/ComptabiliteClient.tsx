@@ -29,6 +29,7 @@ import {
   GrandLivrePanel,
   PlanComptablePanel,
 } from "./RestitutionsPanels";
+import { EtatsFinanciersPanel } from "./EtatsFinanciersPanel";
 
 /**
  * Écran de la comptabilité générale (E1).
@@ -39,12 +40,18 @@ import {
  * puisqu'une écriture validée ne se corrige que par contre-passation.
  */
 
-type Onglet = "ecritures" | "balance" | "grand-livre" | "plan";
+type Onglet =
+  | "ecritures"
+  | "balance"
+  | "grand-livre"
+  | "etats"
+  | "plan";
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "ecritures", libelle: "Écritures" },
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
+  { cle: "etats", libelle: "États financiers" },
   { cle: "plan", libelle: "Plan comptable" },
 ];
 
@@ -263,6 +270,7 @@ export function ComptabiliteClient() {
           {onglet === "grand-livre" && (
             <GrandLivrePanel exercice={exercice} comptes={comptes ?? []} />
           )}
+          {onglet === "etats" && <EtatsFinanciersPanel exercice={exercice} />}
           {onglet === "plan" && <PlanComptablePanel comptes={comptes ?? []} />}
         </>
       )}

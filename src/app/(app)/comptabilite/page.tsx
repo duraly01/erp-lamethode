@@ -6,7 +6,7 @@ export default function ComptabilitePage() {
     <div>
       <PageHeader
         title="Comptabilité"
-        subtitle="Tenue des livres des contribuables selon le SYSCOHADA révisé : journaux, balance et grand livre."
+        subtitle="Tenue des livres des contribuables selon le SYSCOHADA révisé : journaux, balance, grand livre et états financiers."
       />
       <ComptabiliteClient />
     </div>
