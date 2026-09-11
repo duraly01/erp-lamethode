@@ -202,6 +202,8 @@ export const CLES_A_RAFRAICHIR = [
   "cpta-balance",
   "cpta-grand-livre",
   "cpta-etats-financiers",
+  "cpta-tva",
+  "cpta-dsf",
 ];
 
 export type Tiers = {
@@ -284,6 +286,95 @@ export function useEtatsFinanciers(exerciceId?: number) {
     queryFn: () =>
       apiGet<EtatsFinanciers>(
         `/api/comptabilite/etats-financiers${qs({ exerciceId })}`,
+      ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Déclarations calculées depuis les livres (E2)
+// ---------------------------------------------------------------------------
+
+/** Déclaration du suivi des obligations, telle que l'API la renvoie. */
+export type EcheanceDeclaration = {
+  id: number;
+  statut: string;
+  dateEcheance: string;
+  montant: string | null;
+};
+
+export type LigneTva = {
+  compteNumero: string;
+  compteLibelle: string;
+  montant: number;
+  totalDebit: number;
+  totalCredit: number;
+};
+
+export type DeclarationTva = {
+  exercice: Exercice;
+  periode: string;
+  dateDebut: string;
+  dateFin: string;
+  collectee: LigneTva[];
+  deductible: LigneTva[];
+  totalCollectee: number;
+  totalDeductible: number;
+  creditAnterieur: number;
+  /** Non nul : des périodes antérieures n'ont pas été liquidées. */
+  tvaAnterieureNonLiquidee: number;
+  tvaDue: number;
+  creditAReporter: number;
+  declaration: EcheanceDeclaration | null;
+};
+
+export function useTva(exerciceId?: number, periode?: string) {
+  return useQuery({
+    queryKey: ["cpta-tva", exerciceId, periode],
+    enabled: !!exerciceId && !!periode,
+    queryFn: () =>
+      apiGet<DeclarationTva>(`/api/comptabilite/tva${qs({ exerciceId, periode })}`),
+  });
+}
+
+/** Montants nuls tant que le barème d'impôt n'est pas paramétré. */
+export type Liquidation = {
+  chiffreAffaires: number;
+  resultatComptable: number;
+  reintegrations: number;
+  deductions: number;
+  resultatFiscal: number;
+  acomptesVerses: number;
+  impotSurResultat: number | null;
+  minimumPerception: number | null;
+  impotRetenu: number | null;
+  minimumApplique: boolean;
+  soldeAPayer: number | null;
+  creditImpot: number | null;
+  baremeManquant: boolean;
+};
+
+export type Dsf = {
+  exercice: Exercice;
+  annee: string;
+  etats: EtatsFinanciers;
+  liquidation: Liquidation;
+  declaration: EcheanceDeclaration | null;
+};
+
+export type RetraitementsSaisis = { reintegrations: string; deductions: string };
+
+export function useDsf(exerciceId?: number, retraitements?: RetraitementsSaisis) {
+  const { reintegrations = "", deductions = "" } = retraitements ?? {};
+  return useQuery({
+    queryKey: ["cpta-dsf", exerciceId, reintegrations, deductions],
+    enabled: !!exerciceId,
+    queryFn: () =>
+      apiGet<Dsf>(
+        `/api/comptabilite/dsf${qs({
+          exerciceId,
+          reintegrations: reintegrations || undefined,
+          deductions: deductions || undefined,
+        })}`,
       ),
   });
 }

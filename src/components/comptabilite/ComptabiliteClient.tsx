@@ -30,6 +30,8 @@ import {
   PlanComptablePanel,
 } from "./RestitutionsPanels";
 import { EtatsFinanciersPanel } from "./EtatsFinanciersPanel";
+import { TvaPanel } from "./TvaPanel";
+import { DsfPanel } from "./DsfPanel";
 
 /**
  * Écran de la comptabilité générale (E1).
@@ -45,6 +47,8 @@ type Onglet =
   | "balance"
   | "grand-livre"
   | "etats"
+  | "tva"
+  | "dsf"
   | "plan";
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
@@ -52,6 +56,8 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
   { cle: "etats", libelle: "États financiers" },
+  { cle: "tva", libelle: "TVA" },
+  { cle: "dsf", libelle: "DSF" },
   { cle: "plan", libelle: "Plan comptable" },
 ];
 
@@ -238,7 +244,9 @@ export function ComptabiliteClient() {
         <>
           <div
             role="tablist"
-            className="flex gap-1 border-b border-border"
+            // Sept onglets ne tiennent pas sur un téléphone : sans défilement,
+            // les derniers seraient rognés et inatteignables.
+            className="flex gap-1 overflow-x-auto border-b border-border"
             aria-label="Vues comptables"
           >
             {ONGLETS.map((o) => (
@@ -249,8 +257,8 @@ export function ComptabiliteClient() {
                 onClick={() => setOnglet(o.cle)}
                 className={
                   onglet === o.cle
-                    ? "-mb-px border-b-2 border-primary px-4 py-2 text-sm font-medium text-foreground"
-                    : "-mb-px border-b-2 border-transparent px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                    ? "-mb-px shrink-0 whitespace-nowrap border-b-2 border-primary px-4 py-2 text-sm font-medium text-foreground"
+                    : "-mb-px shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
                 }
               >
                 {o.libelle}
@@ -271,6 +279,8 @@ export function ComptabiliteClient() {
             <GrandLivrePanel exercice={exercice} comptes={comptes ?? []} />
           )}
           {onglet === "etats" && <EtatsFinanciersPanel exercice={exercice} />}
+          {onglet === "tva" && <TvaPanel exercice={exercice} />}
+          {onglet === "dsf" && <DsfPanel exercice={exercice} />}
           {onglet === "plan" && <PlanComptablePanel comptes={comptes ?? []} />}
         </>
       )}
