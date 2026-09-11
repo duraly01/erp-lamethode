@@ -67,6 +67,14 @@ export const RESSOURCES: {
       "Supprimer : jeter un brouillon, contre-passer une écriture validée.",
   },
   {
+    cle: "paie",
+    label: "Paie",
+    description:
+      "Salariés et bulletins des contribuables. Consulter : fiches et bulletins. " +
+      "Créer : une fiche, un mois de paie. Modifier : les éléments du mois, valider le mois. " +
+      "Supprimer : une fiche sans bulletin, un mois en brouillon.",
+  },
+  {
     cle: "analytics",
     label: "Analytics",
     description: "Tableaux de bord et statistiques",

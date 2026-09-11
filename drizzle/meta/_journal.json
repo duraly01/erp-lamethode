@@ -43,6 +43,13 @@
       "when": 1789123546684,
       "tag": "0005_e3_pieces",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789131449333,
+      "tag": "0006_e4_paie",
+      "breakpoints": true
     }
   ]
 }

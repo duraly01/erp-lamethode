@@ -28,6 +28,7 @@ import {
   montantTrimestriel,
 } from "../lib/igs";
 import { IDENTITE_CABINET_DEFAUT } from "../lib/facturation";
+import { BAREME_PAIE_DEFAUT } from "../lib/paie/bareme";
 
 // ---------------------------------------------------------------------------
 // Données de démonstration — Cabinet LaMethode SARL
@@ -44,6 +45,7 @@ const PERMS_MANAGER: RolePermission[] = [
   { ressource: "acf", actions: ["read", "create", "update", "delete"] },
   { ressource: "documents", actions: ["read", "create", "update", "delete"] },
   { ressource: "factures", actions: ["read", "create", "update", "delete"] },
+  { ressource: "paie", actions: ["read", "create", "update", "delete"] },
   { ressource: "analytics", actions: ["read"] },
 ];
 
@@ -55,6 +57,7 @@ const PERMS_COLLAB: RolePermission[] = [
   { ressource: "documents", actions: ["read", "create"] },
   // Le collaborateur prépare les factures ; l'émission relève du manager.
   { ressource: "factures", actions: ["read", "create", "update"] },
+  { ressource: "paie", actions: ["read", "create", "update"] },
 ];
 
 const PERMS_LECTURE: RolePermission[] = [
@@ -127,6 +130,7 @@ async function main() {
     { cle: "penalite_bareme", valeur: { type: "pct", valeur: 0.1, minimum: 50000 }, description: "Barème de pénalité de retard" },
     { cle: "identite_visuelle", valeur: { vert: "#59B233", noir: "#111827" }, description: "Charte graphique" },
     { cle: "igs_bareme", valeur: IGS_BAREME_DEFAUT, description: "Barème IGS (CGI art. C40) : classe, tranche de CA annuel, montant forfaitaire (FCFA)" },
+    { cle: "paie_bareme", valeur: BAREME_PAIE_DEFAUT, description: "Barème de paie (CNPS, IRPP, CFC, FNE, TDL, RAV, avantages en nature), en versions datées" },
     { cle: "cabinet_identite", valeur: IDENTITE_CABINET_DEFAUT, description: "Coordonnées légales imprimées en pied de facture" },
     { cle: "facturation_numerotation", valeur: { prefixe: "FA" }, description: "Préfixe des numéros de facture (FA-2026-0001)" },
     { cle: "facturation_delai_paiement", valeur: { jours: 15 }, description: "Délai de paiement accordé, en jours" },

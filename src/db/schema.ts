@@ -1160,6 +1160,164 @@ export const cptaPieceLignes = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// PAIE (E4) — bulletins des salariés des contribuables
+//
+// Préfixe `paie_`. Le salarié est celui du contribuable, jamais du cabinet.
+// Un bulletin est un document : ce qu'il porte est figé à sa validation,
+// avec la version du barème qui l'a calculé. Rien ne se recalcule dans le
+// dos d'un bulletin validé.
+// ---------------------------------------------------------------------------
+
+export const paieRegimeCnpsEnum = pgEnum("paie_regime_cnps", ["GENERAL", "AGRICOLE", "ENSEIGNEMENT"]);
+export const paieGroupeRisqueEnum = pgEnum("paie_groupe_risque", ["A", "B", "C"]);
+export const paieModePaiementEnum = pgEnum("paie_mode_paiement", ["VIREMENT", "CHEQUE", "ESPECES"]);
+export const paieStatutPeriodeEnum = pgEnum("paie_statut_periode", ["BROUILLON", "VALIDEE"]);
+export const paieTypeLigneEnum = pgEnum("paie_type_ligne", ["GAIN", "RETENUE", "EMPLOYEUR"]);
+
+export const paieSalaries = pgTable(
+  "paie_salaries",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    matricule: varchar("matricule", { length: 30 }).notNull(),
+    nom: text("nom").notNull(),
+    prenoms: text("prenoms"),
+    niu: varchar("niu", { length: 30 }),
+    numeroCnps: varchar("numero_cnps", { length: 30 }),
+    dateNaissance: date("date_naissance"),
+    dateEmbauche: date("date_embauche").notNull(),
+    /** Renseignée à la sortie : plus de bulletin après ce mois. */
+    dateSortie: date("date_sortie"),
+    poste: text("poste"),
+    categorie: text("categorie"),
+    echelon: text("echelon"),
+    salaireBase: numeric("salaire_base", { precision: 14, scale: 2 }).notNull(),
+    regimeCnps: paieRegimeCnpsEnum("regime_cnps").default("GENERAL").notNull(),
+    groupeRisque: paieGroupeRisqueEnum("groupe_risque").default("A").notNull(),
+    modePaiement: paieModePaiementEnum("mode_paiement").default("VIREMENT").notNull(),
+    banque: text("banque"),
+    /** Avantages en nature servis, évalués forfaitairement au barème. */
+    avantagesNature: jsonb("avantages_nature").$type<string[]>().default([]).notNull(),
+    actif: boolean("actif").default(true).notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("paie_salaries_ctb_matricule_unique").on(t.contribuableId, t.matricule),
+    index("paie_salaries_ctb_idx").on(t.contribuableId, t.actif),
+  ],
+);
+
+/** Primes et indemnités fixes d'un salarié, reprises chaque mois. */
+export const paieRubriquesFixes = pgTable(
+  "paie_rubriques_fixes",
+  {
+    id: serial("id").primaryKey(),
+    salarieId: integer("salarie_id")
+      .references(() => paieSalaries.id, { onDelete: "cascade" })
+      .notNull(),
+    libelle: text("libelle").notNull(),
+    montant: numeric("montant", { precision: 14, scale: 2 }).notNull(),
+    cotisable: boolean("cotisable").default(true).notNull(),
+    imposable: boolean("imposable").default(true).notNull(),
+    ordre: integer("ordre").default(0).notNull(),
+  },
+  (t) => [index("paie_rubriques_fixes_salarie_idx").on(t.salarieId, t.ordre)],
+);
+
+/** Un mois de paie d'un contribuable. */
+export const paiePeriodes = pgTable(
+  "paie_periodes",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    /** « AAAA-MM ». */
+    periode: varchar("periode", { length: 7 }).notNull(),
+    statut: paieStatutPeriodeEnum("statut").default("BROUILLON").notNull(),
+    /** Version du barème qui a calculé les bulletins. */
+    baremeValideDu: date("bareme_valide_du").notNull(),
+    /** Écriture de paie générée à la validation, si le contribuable tient ses livres ici. */
+    ecritureId: integer("ecriture_id").references(() => cptaEcritures.id, { onDelete: "set null" }),
+    valideeLe: timestamp("validee_le"),
+    valideePar: integer("validee_par").references(() => users.id, { onDelete: "set null" }),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("paie_periodes_ctb_periode_unique").on(t.contribuableId, t.periode)],
+);
+
+export const paieBulletins = pgTable(
+  "paie_bulletins",
+  {
+    id: serial("id").primaryKey(),
+    periodeId: integer("periode_id")
+      .references(() => paiePeriodes.id, { onDelete: "cascade" })
+      .notNull(),
+    salarieId: integer("salarie_id")
+      .references(() => paieSalaries.id, { onDelete: "restrict" })
+      .notNull(),
+    /** Éléments du mois saisis : absences, heures sup, primes, acomptes… */
+    elements: jsonb("elements").$type<Record<string, unknown>>().default({}).notNull(),
+    // Ce que le salarié était ce mois-là, figé avec le bulletin.
+    matricule: varchar("matricule", { length: 30 }).notNull(),
+    nomComplet: text("nom_complet").notNull(),
+    poste: text("poste"),
+    categorie: text("categorie"),
+    numeroCnps: varchar("numero_cnps", { length: 30 }),
+    salaireBase: numeric("salaire_base", { precision: 14, scale: 2 }).notNull(),
+    regimeCnps: paieRegimeCnpsEnum("regime_cnps").notNull(),
+    groupeRisque: paieGroupeRisqueEnum("groupe_risque").notNull(),
+    modePaiement: paieModePaiementEnum("mode_paiement").notNull(),
+    // Totaux, en francs.
+    brut: numeric("brut", { precision: 14, scale: 2 }).notNull(),
+    brutCotisable: numeric("brut_cotisable", { precision: 14, scale: 2 }).notNull(),
+    brutImposable: numeric("brut_imposable", { precision: 14, scale: 2 }).notNull(),
+    cnpsSalarie: numeric("cnps_salarie", { precision: 14, scale: 2 }).notNull(),
+    irpp: numeric("irpp", { precision: 14, scale: 2 }).notNull(),
+    cac: numeric("cac", { precision: 14, scale: 2 }).notNull(),
+    cfcSalarie: numeric("cfc_salarie", { precision: 14, scale: 2 }).notNull(),
+    tdl: numeric("tdl", { precision: 14, scale: 2 }).notNull(),
+    rav: numeric("rav", { precision: 14, scale: 2 }).notNull(),
+    avances: numeric("avances", { precision: 14, scale: 2 }).notNull(),
+    autresRetenues: numeric("autres_retenues", { precision: 14, scale: 2 }).notNull(),
+    totalRetenues: numeric("total_retenues", { precision: 14, scale: 2 }).notNull(),
+    netAPayer: numeric("net_a_payer", { precision: 14, scale: 2 }).notNull(),
+    cnpsEmployeur: numeric("cnps_employeur", { precision: 14, scale: 2 }).notNull(),
+    cfcEmployeur: numeric("cfc_employeur", { precision: 14, scale: 2 }).notNull(),
+    fne: numeric("fne", { precision: 14, scale: 2 }).notNull(),
+    chargesEmployeur: numeric("charges_employeur", { precision: 14, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("paie_bulletins_periode_salarie_unique").on(t.periodeId, t.salarieId)],
+);
+
+export const paieBulletinLignes = pgTable(
+  "paie_bulletin_lignes",
+  {
+    id: serial("id").primaryKey(),
+    bulletinId: integer("bulletin_id")
+      .references(() => paieBulletins.id, { onDelete: "cascade" })
+      .notNull(),
+    ordre: integer("ordre").notNull(),
+    type: paieTypeLigneEnum("type").notNull(),
+    code: varchar("code", { length: 30 }).notNull(),
+    libelle: text("libelle").notNull(),
+    base: numeric("base", { precision: 14, scale: 2 }),
+    taux: numeric("taux", { precision: 7, scale: 4 }),
+    montant: numeric("montant", { precision: 14, scale: 2 }).notNull(),
+    enNature: boolean("en_nature").default(false).notNull(),
+  },
+  (t) => [index("paie_bulletin_lignes_bulletin_idx").on(t.bulletinId, t.ordre)],
+);
+
+// ---------------------------------------------------------------------------
 // Relations (Drizzle Query API)
 // ---------------------------------------------------------------------------
 
@@ -1472,4 +1630,30 @@ export const cptaPieceLignesRelations = relations(cptaPieceLignes, ({ one }) => 
   piece: one(cptaPieces, { fields: [cptaPieceLignes.pieceId], references: [cptaPieces.id] }),
   compte: one(cptaComptes, { fields: [cptaPieceLignes.compteId], references: [cptaComptes.id] }),
   taxe: one(cptaTaxes, { fields: [cptaPieceLignes.taxeId], references: [cptaTaxes.id] }),
+}));
+
+export const paieSalariesRelations = relations(paieSalaries, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [paieSalaries.contribuableId], references: [contribuables.id] }),
+  rubriquesFixes: many(paieRubriquesFixes),
+  bulletins: many(paieBulletins),
+}));
+
+export const paieRubriquesFixesRelations = relations(paieRubriquesFixes, ({ one }) => ({
+  salarie: one(paieSalaries, { fields: [paieRubriquesFixes.salarieId], references: [paieSalaries.id] }),
+}));
+
+export const paiePeriodesRelations = relations(paiePeriodes, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [paiePeriodes.contribuableId], references: [contribuables.id] }),
+  ecriture: one(cptaEcritures, { fields: [paiePeriodes.ecritureId], references: [cptaEcritures.id] }),
+  bulletins: many(paieBulletins),
+}));
+
+export const paieBulletinsRelations = relations(paieBulletins, ({ one, many }) => ({
+  periode: one(paiePeriodes, { fields: [paieBulletins.periodeId], references: [paiePeriodes.id] }),
+  salarie: one(paieSalaries, { fields: [paieBulletins.salarieId], references: [paieSalaries.id] }),
+  lignes: many(paieBulletinLignes),
+}));
+
+export const paieBulletinLignesRelations = relations(paieBulletinLignes, ({ one }) => ({
+  bulletin: one(paieBulletins, { fields: [paieBulletinLignes.bulletinId], references: [paieBulletins.id] }),
 }));

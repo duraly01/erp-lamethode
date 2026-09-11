@@ -133,7 +133,7 @@ export async function apiGet<T>(url: string): Promise<T> {
 
 export async function apiSend<T>(
   url: string,
-  method: "POST" | "PATCH" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   body?: unknown,
 ): Promise<T | null> {
   const res = await fetchOuReseau(url, {
