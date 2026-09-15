@@ -802,3 +802,69 @@ export function useTableauImmobilisations(exerciceId?: number) {
     queryFn: () => apiGet<TableauImmobilisations>(`/api/comptabilite/immobilisations/tableau${qs({ exerciceId })}`),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Comptabilité analytique (E5)
+// ---------------------------------------------------------------------------
+
+export type SectionAnalytique = { id: number; axeId: number; code: string; libelle: string; actif: boolean };
+export type AxeAnalytique = { id: number; contribuableId: number; code: string; libelle: string; actif: boolean; sections: SectionAnalytique[] };
+
+export type LigneAVentiler = {
+  ligneId: number;
+  ecritureId: number;
+  numeroPiece: string | null;
+  dateEcriture: string;
+  journalCode: string;
+  libelle: string;
+  compteId: number;
+  compteNumero: string;
+  compteLibelle: string;
+  montant: string;
+  sens: "DEBIT" | "CREDIT";
+  ventilations: { sectionId: number; montant: string }[];
+  reste: string;
+};
+
+export type LignesAnalytiques = {
+  axe: { id: number; code: string; libelle: string };
+  sections: { id: number; code: string; libelle: string; actif: boolean }[];
+  lignes: LigneAVentiler[];
+};
+
+export type RestitutionAnalytique = {
+  exercice: { id: number; libelle: string };
+  axe: { id: number; code: string; libelle: string };
+  lignes: {
+    section: { id: number; code: string; libelle: string } | null;
+    charges: string;
+    produits: string;
+    resultat: string;
+    comptes: { numero: string; libelle: string; charges: string; produits: string }[];
+  }[];
+  totaux: { charges: string; produits: string; resultat: string };
+};
+
+export function useAxesAnalytiques(contribuableId?: number) {
+  return useQuery({
+    queryKey: ["cpta-axes", contribuableId],
+    enabled: !!contribuableId,
+    queryFn: () => apiGet<AxeAnalytique[]>(`/api/comptabilite/analytique/axes${qs({ contribuableId })}`),
+  });
+}
+
+export function useLignesAnalytiques(exerciceId?: number, axeId?: number, etat?: "A_VENTILER" | "TOUTES", compte?: string) {
+  return useQuery({
+    queryKey: ["cpta-analytique-lignes", exerciceId, axeId, etat, compte],
+    enabled: !!exerciceId && !!axeId,
+    queryFn: () => apiGet<LignesAnalytiques>(`/api/comptabilite/analytique/lignes${qs({ exerciceId, axeId, etat, compte })}`),
+  });
+}
+
+export function useRestitutionAnalytique(exerciceId?: number, axeId?: number) {
+  return useQuery({
+    queryKey: ["cpta-analytique-restitution", exerciceId, axeId],
+    enabled: !!exerciceId && !!axeId,
+    queryFn: () => apiGet<RestitutionAnalytique>(`/api/comptabilite/analytique/restitution${qs({ exerciceId, axeId })}`),
+  });
+}

@@ -303,3 +303,42 @@ export const sortieImmobilisationSchema = z.object({
   prixCession: montantSaisi,
   notes: optionalText(2000),
 });
+
+// ---------------------------------------------------------------------------
+// Comptabilité analytique (E5)
+// ---------------------------------------------------------------------------
+
+export const axeCreateSchema = z.object({
+  contribuableId: idPositif,
+  code: z.string().trim().min(1).max(20),
+  libelle: z.string().trim().min(1).max(120),
+});
+
+export const axeUpdateSchema = z.object({
+  libelle: z.string().trim().min(1).max(120).optional(),
+  actif: z.boolean().optional(),
+});
+
+export const sectionCreateSchema = z.object({
+  code: z.string().trim().min(1).max(20),
+  libelle: z.string().trim().min(1).max(120),
+});
+
+export const sectionUpdateSchema = axeUpdateSchema;
+
+export const lignesAnalytiquesQuerySchema = z.object({
+  exerciceId: idPositif,
+  axeId: idPositif,
+  etat: z.enum(["A_VENTILER", "TOUTES"]).optional(),
+  compte: z.string().trim().max(10).optional(),
+});
+
+export const ventilationSchema = z.object({
+  axeId: idPositif,
+  ventilations: z.array(z.object({ sectionId: idPositif, montant: montantPositif })).max(50),
+});
+
+export const restitutionAnalytiqueQuerySchema = z.object({
+  exerciceId: idPositif,
+  axeId: idPositif,
+});

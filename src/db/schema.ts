@@ -1239,6 +1239,67 @@ export const cptaDotations = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// COMPTABILITÉ ANALYTIQUE (E5)
+//
+// Un axe est une façon de lire les charges et les produits — par activité,
+// par site, par projet ; ses sections en sont les cases. Une ligne
+// d'écriture se ventile sur les sections d'un axe, en montant. La
+// ventilation ne touche pas à l'écriture : comme le lettrage, elle se pose
+// et se défait sans trace dans les livres.
+// ---------------------------------------------------------------------------
+
+export const cptaAxesAnalytiques = pgTable(
+  "cpta_axes_analytiques",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("cpta_axes_ctb_code_unique").on(t.contribuableId, t.code)],
+);
+
+export const cptaSectionsAnalytiques = pgTable(
+  "cpta_sections_analytiques",
+  {
+    id: serial("id").primaryKey(),
+    axeId: integer("axe_id")
+      .references(() => cptaAxesAnalytiques.id, { onDelete: "cascade" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("cpta_sections_axe_code_unique").on(t.axeId, t.code)],
+);
+
+/** La part d'une ligne d'écriture affectée à une section, en francs, dans le sens de la ligne. */
+export const cptaVentilationsAnalytiques = pgTable(
+  "cpta_ventilations_analytiques",
+  {
+    id: serial("id").primaryKey(),
+    ligneId: integer("ligne_id")
+      .references(() => cptaLignesEcriture.id, { onDelete: "cascade" })
+      .notNull(),
+    sectionId: integer("section_id")
+      .references(() => cptaSectionsAnalytiques.id, { onDelete: "restrict" })
+      .notNull(),
+    montant: numeric("montant", { precision: 14, scale: 2 }).notNull(),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_ventilations_ligne_section_unique").on(t.ligneId, t.sectionId),
+    index("cpta_ventilations_section_idx").on(t.sectionId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // PAIE (E4) — bulletins des salariés des contribuables
 //
 // Préfixe `paie_`. Le salarié est celui du contribuable, jamais du cabinet.
@@ -1728,6 +1789,21 @@ export const cptaDotationsRelations = relations(cptaDotations, ({ one }) => ({
   immobilisation: one(cptaImmobilisations, { fields: [cptaDotations.immobilisationId], references: [cptaImmobilisations.id] }),
   exercice: one(cptaExercices, { fields: [cptaDotations.exerciceId], references: [cptaExercices.id] }),
   ecriture: one(cptaEcritures, { fields: [cptaDotations.ecritureId], references: [cptaEcritures.id] }),
+}));
+
+export const cptaAxesAnalytiquesRelations = relations(cptaAxesAnalytiques, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [cptaAxesAnalytiques.contribuableId], references: [contribuables.id] }),
+  sections: many(cptaSectionsAnalytiques),
+}));
+
+export const cptaSectionsAnalytiquesRelations = relations(cptaSectionsAnalytiques, ({ one, many }) => ({
+  axe: one(cptaAxesAnalytiques, { fields: [cptaSectionsAnalytiques.axeId], references: [cptaAxesAnalytiques.id] }),
+  ventilations: many(cptaVentilationsAnalytiques),
+}));
+
+export const cptaVentilationsAnalytiquesRelations = relations(cptaVentilationsAnalytiques, ({ one }) => ({
+  ligne: one(cptaLignesEcriture, { fields: [cptaVentilationsAnalytiques.ligneId], references: [cptaLignesEcriture.id] }),
+  section: one(cptaSectionsAnalytiques, { fields: [cptaVentilationsAnalytiques.sectionId], references: [cptaSectionsAnalytiques.id] }),
 }));
 
 export const paieSalariesRelations = relations(paieSalaries, ({ one, many }) => ({
