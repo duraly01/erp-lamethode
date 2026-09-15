@@ -77,7 +77,7 @@ la première brique réellement transformante**.
 | Achats & fournisseurs | ✅ Fait (E3 — tiers, factures d'achat, règlements) | Rien |
 | RH & paie | ✅ Fait (E4 — salariés, bulletins, barème daté, DIPE, écriture et règlement de paie) | Rien |
 | Comptabilité analytique | ✅ Fait (E5 — axes, sections, ventilation, restitution) | Rien |
-| Budget & contrôle budgétaire | ❌ Absent | Ultérieur |
+| Budget & contrôle budgétaire | ✅ Fait (E6 — budgets par compte et par section, mensualisation, contrôle à date) | Rien |
 | Stocks & inventaire | ❌ Absent | Ultérieur — peu de clients concernés |
 | Consolidation multi-entités | ❌ | **Hors périmètre** |
 | Passerelle IFRS | ❌ | **Hors périmètre** |
@@ -86,8 +86,8 @@ la première brique réellement transformante**.
 | Production / GPAO | ❌ | **Hors périmètre** — pas la clientèle du cabinet |
 | Gestion agricole | ❌ | **Hors périmètre** |
 
-Six modules sur vingt sont retenus, six sont écartés d'emblée. Les phases E1 à E5 sont
-livrées (septembre 2026) ; restent le budget et les stocks, ultérieurs.
+Sept modules sur vingt sont retenus, six sont écartés d'emblée. Les phases E1 à E6 sont
+livrées (septembre 2026) ; restent les stocks, ultérieurs.
 Le périmètre passe de « ERP généraliste » à « outil de production d'un cabinet comptable » —
 c'est beaucoup plus petit, et c'est ce dont le cabinet a réellement besoin.
 

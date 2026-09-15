@@ -342,3 +342,43 @@ export const restitutionAnalytiqueQuerySchema = z.object({
   exerciceId: idPositif,
   axeId: idPositif,
 });
+
+// ---------------------------------------------------------------------------
+// Budget (E6)
+// ---------------------------------------------------------------------------
+
+export const budgetCreateSchema = z.object({
+  exerciceId: idPositif,
+  libelle: z.string().trim().min(1).max(120),
+  axeId: idPositif.nullable().optional(),
+  notes: optionalText(2000),
+});
+
+export const budgetUpdateSchema = z.object({
+  libelle: z.string().trim().min(1).max(120).optional(),
+  notes: optionalText(2000),
+});
+
+export const budgetLignesSchema = z.object({
+  lignes: z
+    .array(
+      z.object({
+        compteId: idPositif,
+        sectionId: idPositif.nullable().optional(),
+        montantAnnuel: montantPositif,
+        mensualisation: z.array(z.number().min(0)).min(1).max(24).nullable().optional(),
+        commentaire: optionalText(500),
+      }),
+    )
+    .max(2000),
+});
+
+export const budgetControleQuerySchema = z.object({
+  jusquAu: dateString.optional(),
+});
+
+export const budgetInitialisationSchema = z.object({
+  exerciceSourceId: idPositif,
+  /** Coefficient en pourcentage : 100 reprend tel quel, 105 ajoute 5 %. */
+  coefficientPct: z.coerce.number().min(0).max(1000).default(100),
+});

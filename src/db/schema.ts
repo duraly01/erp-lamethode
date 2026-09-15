@@ -1300,6 +1300,56 @@ export const cptaVentilationsAnalytiques = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// BUDGET (E6)
+//
+// Un budget est une prévision de charges et de produits sur un exercice,
+// compte par compte et, s'il s'appuie sur un axe analytique, section par
+// section. Plusieurs budgets peuvent coexister sur un exercice — initial,
+// révisé — et le contrôle budgétaire compare l'un d'eux au réalisé.
+// ---------------------------------------------------------------------------
+
+export const cptaStatutBudgetEnum = pgEnum("cpta_statut_budget", ["BROUILLON", "VALIDE"]);
+
+export const cptaBudgets = pgTable(
+  "cpta_budgets",
+  {
+    id: serial("id").primaryKey(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "restrict" })
+      .notNull(),
+    libelle: text("libelle").notNull(),
+    /** Axe analytique dont les sections détaillent le budget ; nul pour un budget par compte seul. */
+    axeId: integer("axe_id").references(() => cptaAxesAnalytiques.id, { onDelete: "restrict" }),
+    statut: cptaStatutBudgetEnum("statut").default("BROUILLON").notNull(),
+    notes: text("notes"),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("cpta_budgets_exercice_idx").on(t.exerciceId)],
+);
+
+export const cptaBudgetLignes = pgTable(
+  "cpta_budget_lignes",
+  {
+    id: serial("id").primaryKey(),
+    budgetId: integer("budget_id")
+      .references(() => cptaBudgets.id, { onDelete: "cascade" })
+      .notNull(),
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "restrict" })
+      .notNull(),
+    sectionId: integer("section_id").references(() => cptaSectionsAnalytiques.id, { onDelete: "restrict" }),
+    /** Prévision de l'exercice, en francs. */
+    montantAnnuel: numeric("montant_annuel", { precision: 14, scale: 2 }).notNull(),
+    /** Poids des mois de l'exercice, dans l'ordre ; nul pour une répartition uniforme. */
+    mensualisation: jsonb("mensualisation").$type<number[] | null>(),
+    commentaire: text("commentaire"),
+  },
+  (t) => [index("cpta_budget_lignes_budget_idx").on(t.budgetId, t.compteId)],
+);
+
+// ---------------------------------------------------------------------------
 // PAIE (E4) — bulletins des salariés des contribuables
 //
 // Préfixe `paie_`. Le salarié est celui du contribuable, jamais du cabinet.
@@ -1804,6 +1854,18 @@ export const cptaSectionsAnalytiquesRelations = relations(cptaSectionsAnalytique
 export const cptaVentilationsAnalytiquesRelations = relations(cptaVentilationsAnalytiques, ({ one }) => ({
   ligne: one(cptaLignesEcriture, { fields: [cptaVentilationsAnalytiques.ligneId], references: [cptaLignesEcriture.id] }),
   section: one(cptaSectionsAnalytiques, { fields: [cptaVentilationsAnalytiques.sectionId], references: [cptaSectionsAnalytiques.id] }),
+}));
+
+export const cptaBudgetsRelations = relations(cptaBudgets, ({ one, many }) => ({
+  exercice: one(cptaExercices, { fields: [cptaBudgets.exerciceId], references: [cptaExercices.id] }),
+  axe: one(cptaAxesAnalytiques, { fields: [cptaBudgets.axeId], references: [cptaAxesAnalytiques.id] }),
+  lignes: many(cptaBudgetLignes),
+}));
+
+export const cptaBudgetLignesRelations = relations(cptaBudgetLignes, ({ one }) => ({
+  budget: one(cptaBudgets, { fields: [cptaBudgetLignes.budgetId], references: [cptaBudgets.id] }),
+  compte: one(cptaComptes, { fields: [cptaBudgetLignes.compteId], references: [cptaComptes.id] }),
+  section: one(cptaSectionsAnalytiques, { fields: [cptaBudgetLignes.sectionId], references: [cptaSectionsAnalytiques.id] }),
 }));
 
 export const paieSalariesRelations = relations(paieSalaries, ({ one, many }) => ({

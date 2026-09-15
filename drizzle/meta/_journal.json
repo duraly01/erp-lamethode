@@ -85,6 +85,13 @@
       "when": 1789478013548,
       "tag": "0011_e5_analytique",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789479682976,
+      "tag": "0012_e6_budget",
+      "breakpoints": true
     }
   ]
 }

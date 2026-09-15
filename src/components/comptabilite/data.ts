@@ -868,3 +868,90 @@ export function useRestitutionAnalytique(exerciceId?: number, axeId?: number) {
     queryFn: () => apiGet<RestitutionAnalytique>(`/api/comptabilite/analytique/restitution${qs({ exerciceId, axeId })}`),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Budget (E6)
+// ---------------------------------------------------------------------------
+
+export type BudgetResume = {
+  id: number;
+  exerciceId: number;
+  libelle: string;
+  axeId: number | null;
+  axeCode: string | null;
+  statut: "BROUILLON" | "VALIDE";
+  notes: string | null;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type LigneBudget = {
+  id: number;
+  compteId: number;
+  compteNumero: string;
+  compteLibelle: string;
+  sectionId: number | null;
+  sectionCode: string | null;
+  montantAnnuel: string;
+  mensualisation: number[] | null;
+  commentaire: string | null;
+};
+
+export type BudgetDetail = Omit<BudgetResume, "axeCode"> & {
+  exercice: { id: number; libelle: string; dateDebut: string; dateFin: string; nbMois: number };
+  lignes: LigneBudget[];
+  totaux: { charges: string; produits: string; resultat: string };
+};
+
+export type LigneControleBudget = {
+  compteNumero: string;
+  compteLibelle: string;
+  sectionId: number | null;
+  nature: "CHARGE" | "PRODUIT";
+  budgetAnnuel: string;
+  budgetADate: string;
+  realise: string;
+  ecart: string;
+  ecartPct: number | null;
+  consommationPct: number | null;
+  horsBudget: boolean;
+};
+
+export type TotauxControle = { budgetAnnuel: string; budgetADate: string; realise: string; ecart: string };
+
+export type ControleBudget = {
+  budget: { id: number; libelle: string; statut: string; axeId: number | null };
+  exercice: { id: number; libelle: string };
+  jusquAu: string;
+  moisEcoules: number;
+  nbMois: number;
+  sections: { id: number; code: string; libelle: string }[];
+  lignes: LigneControleBudget[];
+  charges: TotauxControle;
+  produits: TotauxControle;
+  resultat: TotauxControle;
+};
+
+export function useBudgets(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-budgets", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () => apiGet<BudgetResume[]>(`/api/comptabilite/budgets${qs({ exerciceId })}`),
+  });
+}
+
+export function useBudget(id?: number) {
+  return useQuery({
+    queryKey: ["cpta-budget", id],
+    enabled: !!id,
+    queryFn: () => apiGet<BudgetDetail>(`/api/comptabilite/budgets/${id}`),
+  });
+}
+
+export function useControleBudget(id?: number, jusquAu?: string) {
+  return useQuery({
+    queryKey: ["cpta-budget-controle", id, jusquAu],
+    enabled: !!id,
+    queryFn: () => apiGet<ControleBudget>(`/api/comptabilite/budgets/${id}/controle${qs({ jusquAu })}`),
+  });
+}
