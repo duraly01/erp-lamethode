@@ -5,6 +5,7 @@ import { noContent, ok, withApi } from "@/lib/http";
 import { idParamSchema } from "@/lib/schemas/common";
 import { axeUpdateSchema } from "@/lib/schemas/comptabilite";
 import { modifierAxe, supprimerAxe } from "@/lib/services/comptabilite/analytique";
+import { writeAudit, clientIp } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -15,9 +16,10 @@ export const PATCH = withApi(async (req: NextRequest, { params }: Ctx) => {
 });
 
 /** Un axe sans ventilation se supprime ; sinon, il se désactive. */
-export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
-  requirePermission(await getSessionUser(), "comptabilite", "delete");
+export const DELETE = withApi(async (req: NextRequest, { params }: Ctx) => {
+  const user = requirePermission(await getSessionUser(), "comptabilite", "delete");
   const { id } = idParamSchema.parse(await params);
   await supprimerAxe(id);
+  await writeAudit({ userId: user.id, action: "DELETE", entite: "cpta_axes_analytiques", entiteId: id, ip: clientIp(req) });
   return noContent();
 });

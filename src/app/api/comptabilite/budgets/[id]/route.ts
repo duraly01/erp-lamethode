@@ -5,6 +5,7 @@ import { noContent, ok, withApi } from "@/lib/http";
 import { idParamSchema } from "@/lib/schemas/common";
 import { budgetUpdateSchema } from "@/lib/schemas/comptabilite";
 import { getBudget, modifierBudget, supprimerBudget } from "@/lib/services/comptabilite/budget";
+import { writeAudit, clientIp } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -22,9 +23,10 @@ export const PATCH = withApi(async (req: NextRequest, { params }: Ctx) => {
 });
 
 /** Un budget en brouillon se jette ; validé, il reste. */
-export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
-  requirePermission(await getSessionUser(), "comptabilite", "delete");
+export const DELETE = withApi(async (req: NextRequest, { params }: Ctx) => {
+  const user = requirePermission(await getSessionUser(), "comptabilite", "delete");
   const { id } = idParamSchema.parse(await params);
   await supprimerBudget(id);
+  await writeAudit({ userId: user.id, action: "DELETE", entite: "cpta_budgets", entiteId: id, ip: clientIp(req) });
   return noContent();
 });

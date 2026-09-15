@@ -5,13 +5,16 @@ import { ok, withApi } from "@/lib/http";
 import { idParamSchema } from "@/lib/schemas/common";
 import { budgetLignesSchema } from "@/lib/schemas/comptabilite";
 import { remplacerLignes } from "@/lib/services/comptabilite/budget";
+import { writeAudit, clientIp } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Remplace toutes les lignes du budget : un compte, une section s'il y a un axe, un montant annuel. */
 export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
-  requirePermission(await getSessionUser(), "comptabilite", "update");
+  const user = requirePermission(await getSessionUser(), "comptabilite", "update");
   const { id } = idParamSchema.parse(await params);
   const { lignes } = budgetLignesSchema.parse(await req.json());
-  return ok(await remplacerLignes(id, lignes));
+  const budget = await remplacerLignes(id, lignes);
+  await writeAudit({ userId: user.id, action: "UPDATE", entite: "cpta_budgets", entiteId: id, diff: { apres: { lignes: budget.lignes.length, totaux: budget.totaux } }, ip: clientIp(req) });
+  return ok(budget);
 });
