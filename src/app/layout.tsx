@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 
-const inter = Inter({
-  subsets: ["latin"],
+// Inter est servie depuis le dépôt, pas depuis Google Fonts : le build se fait
+// sur un poste dont l'accès au réseau n'est pas garanti, et l'hébergeur ne
+// compile rien. Une police récupérée au build est un point de rupture de plus.
+const inter = localFont({
+  src: [
+    { path: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2", weight: "100 900", style: "normal" },
+    { path: "../../node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2", weight: "100 900", style: "normal" },
+  ],
   variable: "--font-geist-sans",
   display: "swap",
 });

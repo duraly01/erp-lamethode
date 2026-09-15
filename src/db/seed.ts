@@ -45,6 +45,8 @@ const PERMS_MANAGER: RolePermission[] = [
   { ressource: "acf", actions: ["read", "create", "update", "delete"] },
   { ressource: "documents", actions: ["read", "create", "update", "delete"] },
   { ressource: "factures", actions: ["read", "create", "update", "delete"] },
+  // Le manager tient les livres jusqu'à la clôture, qui relève de « delete ».
+  { ressource: "comptabilite", actions: ["read", "create", "update", "delete"] },
   { ressource: "paie", actions: ["read", "create", "update", "delete"] },
   { ressource: "analytics", actions: ["read"] },
 ];
@@ -57,6 +59,8 @@ const PERMS_COLLAB: RolePermission[] = [
   { ressource: "documents", actions: ["read", "create"] },
   // Le collaborateur prépare les factures ; l'émission relève du manager.
   { ressource: "factures", actions: ["read", "create", "update"] },
+  // Le collaborateur saisit, valide et lettre ; contre-passer et clôturer relèvent du manager.
+  { ressource: "comptabilite", actions: ["read", "create", "update"] },
   { ressource: "paie", actions: ["read", "create", "update"] },
 ];
 
