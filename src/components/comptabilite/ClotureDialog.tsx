@@ -24,6 +24,7 @@ type Controles = {
   suivant: { id: number; libelle: string; statut: string; aNouveauxDeja: boolean } | null;
   brouillons: number;
   rapprochementsOuverts: number;
+  immobilisationsSansDotation: string[];
   balanceEquilibree: boolean;
   obstacles: string[];
 };
@@ -120,6 +121,11 @@ export function ClotureDialog({
               {c.rapprochementsOuverts === 0
                 ? "Aucun rapprochement bancaire en cours."
                 : "Un rapprochement bancaire est en cours — à clôturer ou supprimer depuis l'onglet Banque."}
+            </Controle>
+            <Controle ok={c.immobilisationsSansDotation.length === 0}>
+              {c.immobilisationsSansDotation.length === 0
+                ? "Les dotations aux amortissements sont passées."
+                : `${c.immobilisationsSansDotation.length} immobilisation${c.immobilisationsSansDotation.length > 1 ? "s" : ""} sans dotation (${c.immobilisationsSansDotation.slice(0, 3).join(", ")}${c.immobilisationsSansDotation.length > 3 ? "…" : ""}) — à passer depuis l'onglet Immobilisations.`}
             </Controle>
             <Controle ok={c.balanceEquilibree}>
               {c.balanceEquilibree ? "La balance est équilibrée." : "La balance n'est pas équilibrée."}

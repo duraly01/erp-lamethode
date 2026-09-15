@@ -684,3 +684,121 @@ export function usePiece(id?: number) {
     queryFn: () => apiGet<PieceDetail>(`/api/comptabilite/pieces/${id}`),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Immobilisations (E5)
+// ---------------------------------------------------------------------------
+
+export type ModeAmortissement = "LINEAIRE" | "DEGRESSIF";
+export type StatutImmobilisation = "EN_SERVICE" | "CEDEE" | "REBUT";
+
+export type Immobilisation = {
+  id: number;
+  contribuableId: number;
+  code: string;
+  libelle: string;
+  description: string | null;
+  compteId: number;
+  compteAmortissementId: number | null;
+  compteDotationId: number | null;
+  dateAcquisition: string;
+  dateMiseEnService: string;
+  valeurOrigine: string;
+  valeurResiduelle: string;
+  mode: ModeAmortissement;
+  dureeMois: number | null;
+  fournisseurId: number | null;
+  pieceId: number | null;
+  referenceFacture: string | null;
+  statut: StatutImmobilisation;
+  dateSortie: string | null;
+  prixCession: string | null;
+  ecritureSortieId: number | null;
+  notes: string | null;
+  compteNumero: string;
+  compteLibelle: string;
+};
+
+export type ImmobilisationResume = Immobilisation & {
+  cumulAmortissements: string;
+  valeurNette: string;
+  doteeDansExercice: boolean | null;
+};
+
+export type LignePlanAmortissement = {
+  dateDebut: string;
+  dateFin: string;
+  base: string;
+  dotation: string;
+  cumulFin: string;
+  vncFin: string;
+  exercice: { id: number; libelle: string; statut: string } | null;
+  passee: { montant: string; ecritureId: number; numeroPiece: string | null } | null;
+};
+
+export type ImmobilisationDetail = Immobilisation & {
+  fournisseur: { code: string; raisonSociale: string } | null;
+  modifiable: boolean;
+  plan: LignePlanAmortissement[];
+  ecritureSortie: { numeroPiece: string | null; statut: string } | null;
+};
+
+export type PrevisionDotations = {
+  exercice: { id: number; libelle: string; statut: string };
+  lignes: { id: number; code: string; libelle: string; dotation: string }[];
+};
+
+export type LigneTableauImmobilisations = {
+  id: number;
+  code: string;
+  libelle: string;
+  compteNumero: string;
+  brutDebut: string;
+  acquisitions: string;
+  sorties: string;
+  brutFin: string;
+  amortDebut: string;
+  dotation: string;
+  amortSorties: string;
+  amortFin: string;
+  vncFin: string;
+  dotee: boolean;
+};
+
+export type TableauImmobilisations = {
+  exercice: { id: number; libelle: string; dateDebut: string; dateFin: string };
+  lignes: LigneTableauImmobilisations[];
+  totaux: Omit<LigneTableauImmobilisations, "id" | "code" | "libelle" | "compteNumero" | "dotee">;
+};
+
+export function useImmobilisations(contribuableId?: number, exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-immobilisations", contribuableId, exerciceId],
+    enabled: !!contribuableId,
+    queryFn: () => apiGet<ImmobilisationResume[]>(`/api/comptabilite/immobilisations${qs({ contribuableId, exerciceId })}`),
+  });
+}
+
+export function useImmobilisation(id?: number) {
+  return useQuery({
+    queryKey: ["cpta-immobilisation", id],
+    enabled: !!id,
+    queryFn: () => apiGet<ImmobilisationDetail>(`/api/comptabilite/immobilisations/${id}`),
+  });
+}
+
+export function usePrevisionDotations(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-dotations", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () => apiGet<PrevisionDotations>(`/api/comptabilite/immobilisations/dotations${qs({ exerciceId })}`),
+  });
+}
+
+export function useTableauImmobilisations(exerciceId?: number) {
+  return useQuery({
+    queryKey: ["cpta-tableau-immobilisations", exerciceId],
+    enabled: !!exerciceId,
+    queryFn: () => apiGet<TableauImmobilisations>(`/api/comptabilite/immobilisations/tableau${qs({ exerciceId })}`),
+  });
+}

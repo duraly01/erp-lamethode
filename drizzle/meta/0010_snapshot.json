@@ -1,0 +1,5560 @@
+{
+  "id": "9a543543-ac43-4bfa-b307-cc2501f8c882",
+  "prevId": "32b21f2b-0c76-437b-a485-1c330f4dc68b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.acf_suivis": {
+      "name": "acf_suivis",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "objet": {
+          "name": "objet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_demande": {
+          "name": "date_demande",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "statut_acf",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EN_COURS'"
+        },
+        "motif_blocage": {
+          "name": "motif_blocage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "solution": {
+          "name": "solution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_resolution": {
+          "name": "date_resolution",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_validite": {
+          "name": "date_validite",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsable": {
+          "name": "responsable",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "acf_contribuable_idx": {
+          "name": "acf_contribuable_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "acf_statut_idx": {
+          "name": "acf_statut_idx",
+          "columns": [
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "acf_suivis_contribuable_id_contribuables_id_fk": {
+          "name": "acf_suivis_contribuable_id_contribuables_id_fk",
+          "tableFrom": "acf_suivis",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entite": {
+          "name": "entite",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entite_id": {
+          "name": "entite_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diff": {
+          "name": "diff",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_entite_idx": {
+          "name": "audit_entite_idx",
+          "columns": [
+            {
+              "expression": "entite",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entite_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_user_idx": {
+          "name": "audit_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_log_user_id_users_id_fk": {
+          "name": "audit_log_user_id_users_id_fk",
+          "tableFrom": "audit_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cnps_cotisations": {
+      "name": "cnps_cotisations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode": {
+          "name": "periode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "masse_salariale": {
+          "name": "masse_salariale",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux": {
+          "name": "taux",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_employeur": {
+          "name": "montant_employeur",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_salarie": {
+          "name": "montant_salarie",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "statut_declaration",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'A_FAIRE'"
+        },
+        "declaration_id": {
+          "name": "declaration_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cnps_ctb_periode_unique": {
+          "name": "cnps_ctb_periode_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cnps_echeance_idx": {
+          "name": "cnps_echeance_idx",
+          "columns": [
+            {
+              "expression": "date_echeance",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cnps_cotisations_contribuable_id_contribuables_id_fk": {
+          "name": "cnps_cotisations_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cnps_cotisations",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cnps_cotisations_declaration_id_declarations_id_fk": {
+          "name": "cnps_cotisations_declaration_id_declarations_id_fk",
+          "tableFrom": "cnps_cotisations",
+          "tableTo": "declarations",
+          "columnsFrom": [
+            "declaration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.contribuables": {
+      "name": "contribuables",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "niu": {
+          "name": "niu",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "centre_impots": {
+          "name": "centre_impots",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "regime_fiscal": {
+          "name": "regime_fiscal",
+          "type": "regime_fiscal_v2",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'REEL'"
+        },
+        "igs_classe": {
+          "name": "igs_classe",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cga_adherent": {
+          "name": "cga_adherent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "chiffre_affaires_annuel": {
+          "name": "chiffre_affaires_annuel",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "honoraire_mensuel": {
+          "name": "honoraire_mensuel",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "remise_pct": {
+          "name": "remise_pct",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delai_paiement_jours": {
+          "name": "delai_paiement_jours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse_facturation": {
+          "name": "adresse_facturation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "facturation_auto": {
+          "name": "facturation_auto",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "secteur_activite": {
+          "name": "secteur_activite",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsable_dossier": {
+          "name": "responsable_dossier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responsable_id": {
+          "name": "responsable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_debut_mission": {
+          "name": "date_debut_mission",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contribuables_niu_idx": {
+          "name": "contribuables_niu_idx",
+          "columns": [
+            {
+              "expression": "niu",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contribuables_responsable_idx": {
+          "name": "contribuables_responsable_idx",
+          "columns": [
+            {
+              "expression": "responsable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contribuables_responsable_id_users_id_fk": {
+          "name": "contribuables_responsable_id_users_id_fk",
+          "tableFrom": "contribuables",
+          "tableTo": "users",
+          "columnsFrom": [
+            "responsable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contribuables_igs_classe_check": {
+          "name": "contribuables_igs_classe_check",
+          "value": "\"contribuables\".\"igs_classe\" IS NULL OR (\"contribuables\".\"igs_classe\" >= 1 AND \"contribuables\".\"igs_classe\" <= 12)"
+        },
+        "contribuables_remise_pct_check": {
+          "name": "contribuables_remise_pct_check",
+          "value": "\"contribuables\".\"remise_pct\" IS NULL OR (\"contribuables\".\"remise_pct\" >= 0 AND \"contribuables\".\"remise_pct\" <= 100)"
+        },
+        "contribuables_delai_paiement_check": {
+          "name": "contribuables_delai_paiement_check",
+          "value": "\"contribuables\".\"delai_paiement_jours\" IS NULL OR \"contribuables\".\"delai_paiement_jours\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_comptes": {
+      "name": "cpta_comptes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "numero": {
+          "name": "numero",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "classe": {
+          "name": "classe",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "cpta_type_compte",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "collectif": {
+          "name": "collectif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "lettrable": {
+          "name": "lettrable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "rapprochable": {
+          "name": "rapprochable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_comptes_ctb_numero_unique": {
+          "name": "cpta_comptes_ctb_numero_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "numero",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_comptes_classe_idx": {
+          "name": "cpta_comptes_classe_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "classe",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_comptes_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_comptes_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_comptes",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpta_comptes_classe_check": {
+          "name": "cpta_comptes_classe_check",
+          "value": "\"cpta_comptes\".\"classe\" >= 1 AND \"cpta_comptes\".\"classe\" <= 9"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_dotations": {
+      "name": "cpta_dotations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "immobilisation_id": {
+          "name": "immobilisation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exercice_id": {
+          "name": "exercice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ecriture_id": {
+          "name": "ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_dotations_immo_exercice_unique": {
+          "name": "cpta_dotations_immo_exercice_unique",
+          "columns": [
+            {
+              "expression": "immobilisation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_dotations_exercice_idx": {
+          "name": "cpta_dotations_exercice_idx",
+          "columns": [
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_dotations_immobilisation_id_cpta_immobilisations_id_fk": {
+          "name": "cpta_dotations_immobilisation_id_cpta_immobilisations_id_fk",
+          "tableFrom": "cpta_dotations",
+          "tableTo": "cpta_immobilisations",
+          "columnsFrom": [
+            "immobilisation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_dotations_exercice_id_cpta_exercices_id_fk": {
+          "name": "cpta_dotations_exercice_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_dotations",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_dotations_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "cpta_dotations_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "cpta_dotations",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_ecritures": {
+      "name": "cpta_ecritures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "exercice_id": {
+          "name": "exercice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "journal_id": {
+          "name": "journal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "numero_piece": {
+          "name": "numero_piece",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_ecriture": {
+          "name": "date_ecriture",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "cpta_statut_ecriture",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'BROUILLON'"
+        },
+        "origine": {
+          "name": "origine",
+          "type": "cpta_origine",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'MANUELLE'"
+        },
+        "origine_id": {
+          "name": "origine_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contrepasse_ecriture_id": {
+          "name": "contrepasse_ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valide_par": {
+          "name": "valide_par",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valide_le": {
+          "name": "valide_le",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_ecritures_exercice_numero_unique": {
+          "name": "cpta_ecritures_exercice_numero_unique",
+          "columns": [
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "numero_piece",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_ecritures_exercice_date_idx": {
+          "name": "cpta_ecritures_exercice_date_idx",
+          "columns": [
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date_ecriture",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_ecritures_journal_idx": {
+          "name": "cpta_ecritures_journal_idx",
+          "columns": [
+            {
+              "expression": "journal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_ecritures_origine_idx": {
+          "name": "cpta_ecritures_origine_idx",
+          "columns": [
+            {
+              "expression": "origine",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "origine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_ecritures_exercice_id_cpta_exercices_id_fk": {
+          "name": "cpta_ecritures_exercice_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_ecritures_journal_id_cpta_journaux_id_fk": {
+          "name": "cpta_ecritures_journal_id_cpta_journaux_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "cpta_journaux",
+          "columnsFrom": [
+            "journal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_ecritures_contrepasse_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "cpta_ecritures_contrepasse_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "contrepasse_ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_ecritures_document_id_documents_id_fk": {
+          "name": "cpta_ecritures_document_id_documents_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_ecritures_created_by_users_id_fk": {
+          "name": "cpta_ecritures_created_by_users_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_ecritures_valide_par_users_id_fk": {
+          "name": "cpta_ecritures_valide_par_users_id_fk",
+          "tableFrom": "cpta_ecritures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "valide_par"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpta_ecritures_validation_check": {
+          "name": "cpta_ecritures_validation_check",
+          "value": "(\"cpta_ecritures\".\"statut\" = 'BROUILLON' AND \"cpta_ecritures\".\"numero_piece\" IS NULL AND \"cpta_ecritures\".\"valide_le\" IS NULL)\n          OR (\"cpta_ecritures\".\"statut\" <> 'BROUILLON' AND \"cpta_ecritures\".\"numero_piece\" IS NOT NULL AND \"cpta_ecritures\".\"valide_le\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_exercices": {
+      "name": "cpta_exercices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_debut": {
+          "name": "date_debut",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_fin": {
+          "name": "date_fin",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "systeme": {
+          "name": "systeme",
+          "type": "cpta_systeme",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NORMAL'"
+        },
+        "statut": {
+          "name": "statut",
+          "type": "cpta_statut_exercice",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'OUVERT'"
+        },
+        "exercice_precedent_id": {
+          "name": "exercice_precedent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cloture_le": {
+          "name": "cloture_le",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cloture_par": {
+          "name": "cloture_par",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_exercices_ctb_libelle_unique": {
+          "name": "cpta_exercices_ctb_libelle_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "libelle",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_exercices_ctb_idx": {
+          "name": "cpta_exercices_ctb_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_exercices_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_exercices_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_exercices",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_exercices_exercice_precedent_id_cpta_exercices_id_fk": {
+          "name": "cpta_exercices_exercice_precedent_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_exercices",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_precedent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_exercices_cloture_par_users_id_fk": {
+          "name": "cpta_exercices_cloture_par_users_id_fk",
+          "tableFrom": "cpta_exercices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "cloture_par"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpta_exercices_dates_check": {
+          "name": "cpta_exercices_dates_check",
+          "value": "\"cpta_exercices\".\"date_fin\" > \"cpta_exercices\".\"date_debut\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_immobilisations": {
+      "name": "cpta_immobilisations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compte_amortissement_id": {
+          "name": "compte_amortissement_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "compte_dotation_id": {
+          "name": "compte_dotation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_acquisition": {
+          "name": "date_acquisition",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_mise_en_service": {
+          "name": "date_mise_en_service",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valeur_origine": {
+          "name": "valeur_origine",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valeur_residuelle": {
+          "name": "valeur_residuelle",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0.00'"
+        },
+        "mode": {
+          "name": "mode",
+          "type": "cpta_mode_amortissement",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'LINEAIRE'"
+        },
+        "duree_mois": {
+          "name": "duree_mois",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fournisseur_id": {
+          "name": "fournisseur_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "piece_id": {
+          "name": "piece_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_facture": {
+          "name": "reference_facture",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "cpta_statut_immobilisation",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EN_SERVICE'"
+        },
+        "date_sortie": {
+          "name": "date_sortie",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prix_cession": {
+          "name": "prix_cession",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ecriture_sortie_id": {
+          "name": "ecriture_sortie_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_immobilisations_ctb_code_unique": {
+          "name": "cpta_immobilisations_ctb_code_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_immobilisations_ctb_idx": {
+          "name": "cpta_immobilisations_ctb_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_immobilisations_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_immobilisations_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_immobilisations_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_compte_amortissement_id_cpta_comptes_id_fk": {
+          "name": "cpta_immobilisations_compte_amortissement_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_amortissement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_compte_dotation_id_cpta_comptes_id_fk": {
+          "name": "cpta_immobilisations_compte_dotation_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_dotation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_fournisseur_id_cpta_tiers_id_fk": {
+          "name": "cpta_immobilisations_fournisseur_id_cpta_tiers_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_tiers",
+          "columnsFrom": [
+            "fournisseur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_piece_id_cpta_pieces_id_fk": {
+          "name": "cpta_immobilisations_piece_id_cpta_pieces_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_pieces",
+          "columnsFrom": [
+            "piece_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_ecriture_sortie_id_cpta_ecritures_id_fk": {
+          "name": "cpta_immobilisations_ecriture_sortie_id_cpta_ecritures_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "ecriture_sortie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_immobilisations_created_by_users_id_fk": {
+          "name": "cpta_immobilisations_created_by_users_id_fk",
+          "tableFrom": "cpta_immobilisations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_journaux": {
+      "name": "cpta_journaux",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "cpta_type_journal",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compte_contrepartie_id": {
+          "name": "compte_contrepartie_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_journaux_ctb_code_unique": {
+          "name": "cpta_journaux_ctb_code_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_journaux_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_journaux_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_journaux",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_journaux_compte_contrepartie_id_cpta_comptes_id_fk": {
+          "name": "cpta_journaux_compte_contrepartie_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_journaux",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_contrepartie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_lettrages": {
+      "name": "cpta_lettrages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tiers_id": {
+          "name": "tiers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_lettrage": {
+          "name": "date_lettrage",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_lettrages_compte_code_unique": {
+          "name": "cpta_lettrages_compte_code_unique",
+          "columns": [
+            {
+              "expression": "compte_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_lettrages_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_lettrages_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_lettrages",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_lettrages_tiers_id_cpta_tiers_id_fk": {
+          "name": "cpta_lettrages_tiers_id_cpta_tiers_id_fk",
+          "tableFrom": "cpta_lettrages",
+          "tableTo": "cpta_tiers",
+          "columnsFrom": [
+            "tiers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_lettrages_created_by_users_id_fk": {
+          "name": "cpta_lettrages_created_by_users_id_fk",
+          "tableFrom": "cpta_lettrages",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_lignes_ecriture": {
+      "name": "cpta_lignes_ecriture",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ecriture_id": {
+          "name": "ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tiers_id": {
+          "name": "tiers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "debit": {
+          "name": "debit",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "credit": {
+          "name": "credit",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "lettrage": {
+          "name": "lettrage",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "cpta_lignes_ecriture_idx": {
+          "name": "cpta_lignes_ecriture_idx",
+          "columns": [
+            {
+              "expression": "ecriture_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_lignes_compte_idx": {
+          "name": "cpta_lignes_compte_idx",
+          "columns": [
+            {
+              "expression": "compte_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_lignes_tiers_idx": {
+          "name": "cpta_lignes_tiers_idx",
+          "columns": [
+            {
+              "expression": "tiers_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_lignes_lettrage_idx": {
+          "name": "cpta_lignes_lettrage_idx",
+          "columns": [
+            {
+              "expression": "compte_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lettrage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_lignes_ecriture_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "cpta_lignes_ecriture_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "cpta_lignes_ecriture",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_lignes_ecriture_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_lignes_ecriture_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_lignes_ecriture",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_lignes_ecriture_tiers_id_cpta_tiers_id_fk": {
+          "name": "cpta_lignes_ecriture_tiers_id_cpta_tiers_id_fk",
+          "tableFrom": "cpta_lignes_ecriture",
+          "tableTo": "cpta_tiers",
+          "columnsFrom": [
+            "tiers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpta_lignes_sens_check": {
+          "name": "cpta_lignes_sens_check",
+          "value": "\"cpta_lignes_ecriture\".\"debit\" >= 0 AND \"cpta_lignes_ecriture\".\"credit\" >= 0 AND (\"cpta_lignes_ecriture\".\"debit\" = 0) <> (\"cpta_lignes_ecriture\".\"credit\" = 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_piece_lignes": {
+      "name": "cpta_piece_lignes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "piece_id": {
+          "name": "piece_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant_ht": {
+          "name": "montant_ht",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taxe_id": {
+          "name": "taxe_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "cpta_piece_lignes_piece_idx": {
+          "name": "cpta_piece_lignes_piece_idx",
+          "columns": [
+            {
+              "expression": "piece_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ordre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_piece_lignes_piece_id_cpta_pieces_id_fk": {
+          "name": "cpta_piece_lignes_piece_id_cpta_pieces_id_fk",
+          "tableFrom": "cpta_piece_lignes",
+          "tableTo": "cpta_pieces",
+          "columnsFrom": [
+            "piece_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_piece_lignes_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_piece_lignes_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_piece_lignes",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_piece_lignes_taxe_id_cpta_taxes_id_fk": {
+          "name": "cpta_piece_lignes_taxe_id_cpta_taxes_id_fk",
+          "tableFrom": "cpta_piece_lignes",
+          "tableTo": "cpta_taxes",
+          "columnsFrom": [
+            "taxe_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_pieces": {
+      "name": "cpta_pieces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exercice_id": {
+          "name": "exercice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "cpta_type_piece",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiers_id": {
+          "name": "tiers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_piece": {
+          "name": "date_piece",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_ht": {
+          "name": "total_ht",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_tva": {
+          "name": "total_tva",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_ttc": {
+          "name": "total_ttc",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ecriture_id": {
+          "name": "ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_pieces_contribuable_idx": {
+          "name": "cpta_pieces_contribuable_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date_piece",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_pieces_exercice_idx": {
+          "name": "cpta_pieces_exercice_idx",
+          "columns": [
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_pieces_tiers_idx": {
+          "name": "cpta_pieces_tiers_idx",
+          "columns": [
+            {
+              "expression": "tiers_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_pieces_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_pieces_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_pieces",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_pieces_exercice_id_cpta_exercices_id_fk": {
+          "name": "cpta_pieces_exercice_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_pieces",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_pieces_tiers_id_cpta_tiers_id_fk": {
+          "name": "cpta_pieces_tiers_id_cpta_tiers_id_fk",
+          "tableFrom": "cpta_pieces",
+          "tableTo": "cpta_tiers",
+          "columnsFrom": [
+            "tiers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_pieces_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "cpta_pieces_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "cpta_pieces",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "cpta_pieces_created_by_users_id_fk": {
+          "name": "cpta_pieces_created_by_users_id_fk",
+          "tableFrom": "cpta_pieces",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_rapprochement_lignes": {
+      "name": "cpta_rapprochement_lignes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "rapprochement_id": {
+          "name": "rapprochement_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ligne_ecriture_id": {
+          "name": "ligne_ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pointe_le": {
+          "name": "pointe_le",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_rapprochement_lignes_unique": {
+          "name": "cpta_rapprochement_lignes_unique",
+          "columns": [
+            {
+              "expression": "rapprochement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ligne_ecriture_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_rapprochement_lignes_rapprochement_id_cpta_rapprochements_id_fk": {
+          "name": "cpta_rapprochement_lignes_rapprochement_id_cpta_rapprochements_id_fk",
+          "tableFrom": "cpta_rapprochement_lignes",
+          "tableTo": "cpta_rapprochements",
+          "columnsFrom": [
+            "rapprochement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_rapprochement_lignes_ligne_ecriture_id_cpta_lignes_ecriture_id_fk": {
+          "name": "cpta_rapprochement_lignes_ligne_ecriture_id_cpta_lignes_ecriture_id_fk",
+          "tableFrom": "cpta_rapprochement_lignes",
+          "tableTo": "cpta_lignes_ecriture",
+          "columnsFrom": [
+            "ligne_ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_rapprochements": {
+      "name": "cpta_rapprochements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "exercice_id": {
+          "name": "exercice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_rapprochement": {
+          "name": "date_rapprochement",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "solde_releve": {
+          "name": "solde_releve",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "solde_comptable": {
+          "name": "solde_comptable",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ecart": {
+          "name": "ecart",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "cloture": {
+          "name": "cloture",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_rapprochements_compte_idx": {
+          "name": "cpta_rapprochements_compte_idx",
+          "columns": [
+            {
+              "expression": "compte_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date_rapprochement",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_rapprochements_exercice_id_cpta_exercices_id_fk": {
+          "name": "cpta_rapprochements_exercice_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_rapprochements",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_rapprochements_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_rapprochements_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_rapprochements",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_rapprochements_created_by_users_id_fk": {
+          "name": "cpta_rapprochements_created_by_users_id_fk",
+          "tableFrom": "cpta_rapprochements",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_sequences": {
+      "name": "cpta_sequences",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "exercice_id": {
+          "name": "exercice_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "journal_id": {
+          "name": "journal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prefixe": {
+          "name": "prefixe",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "dernier_numero": {
+          "name": "dernier_numero",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "cpta_sequences_exercice_journal_unique": {
+          "name": "cpta_sequences_exercice_journal_unique",
+          "columns": [
+            {
+              "expression": "exercice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "journal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_sequences_exercice_id_cpta_exercices_id_fk": {
+          "name": "cpta_sequences_exercice_id_cpta_exercices_id_fk",
+          "tableFrom": "cpta_sequences",
+          "tableTo": "cpta_exercices",
+          "columnsFrom": [
+            "exercice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cpta_sequences_journal_id_cpta_journaux_id_fk": {
+          "name": "cpta_sequences_journal_id_cpta_journaux_id_fk",
+          "tableFrom": "cpta_sequences",
+          "tableTo": "cpta_journaux",
+          "columnsFrom": [
+            "journal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.cpta_taxes": {
+      "name": "cpta_taxes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taux": {
+          "name": "taux",
+          "type": "numeric(7, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "cpta_type_taxe",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valide_du": {
+          "name": "valide_du",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valide_au": {
+          "name": "valide_au",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_taxes_ctb_code_idx": {
+          "name": "cpta_taxes_ctb_code_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_taxes_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_taxes_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_taxes",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_taxes_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_taxes_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_taxes",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "cpta_taxes_taux_check": {
+          "name": "cpta_taxes_taux_check",
+          "value": "\"cpta_taxes\".\"taux\" >= 0"
+        },
+        "cpta_taxes_periode_check": {
+          "name": "cpta_taxes_periode_check",
+          "value": "\"cpta_taxes\".\"valide_au\" IS NULL OR \"cpta_taxes\".\"valide_au\" >= \"cpta_taxes\".\"valide_du\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cpta_tiers": {
+      "name": "cpta_tiers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raison_sociale": {
+          "name": "raison_sociale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "types": {
+          "name": "types",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "niu": {
+          "name": "niu",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "compte_id": {
+          "name": "compte_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "adresse": {
+          "name": "adresse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cpta_tiers_ctb_code_unique": {
+          "name": "cpta_tiers_ctb_code_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cpta_tiers_niu_idx": {
+          "name": "cpta_tiers_niu_idx",
+          "columns": [
+            {
+              "expression": "niu",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cpta_tiers_contribuable_id_contribuables_id_fk": {
+          "name": "cpta_tiers_contribuable_id_contribuables_id_fk",
+          "tableFrom": "cpta_tiers",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "cpta_tiers_compte_id_cpta_comptes_id_fk": {
+          "name": "cpta_tiers_compte_id_cpta_comptes_id_fk",
+          "tableFrom": "cpta_tiers",
+          "tableTo": "cpta_comptes",
+          "columnsFrom": [
+            "compte_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.declarations": {
+      "name": "declarations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "declaration_type_v2",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periodicite": {
+          "name": "periodicite",
+          "type": "periodicite_v2",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode": {
+          "name": "periode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "statut_declaration",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'A_FAIRE'"
+        },
+        "date_depot": {
+          "name": "date_depot",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_paiement": {
+          "name": "date_paiement",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_to": {
+          "name": "assigned_to",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "declarations_ctb_type_periode_unique": {
+          "name": "declarations_ctb_type_periode_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "declarations_contribuable_idx": {
+          "name": "declarations_contribuable_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "declarations_echeance_idx": {
+          "name": "declarations_echeance_idx",
+          "columns": [
+            {
+              "expression": "date_echeance",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "declarations_statut_idx": {
+          "name": "declarations_statut_idx",
+          "columns": [
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "declarations_assigned_idx": {
+          "name": "declarations_assigned_idx",
+          "columns": [
+            {
+              "expression": "assigned_to",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "declarations_contribuable_id_contribuables_id_fk": {
+          "name": "declarations_contribuable_id_contribuables_id_fk",
+          "tableFrom": "declarations",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "declarations_assigned_to_users_id_fk": {
+          "name": "declarations_assigned_to_users_id_fk",
+          "tableFrom": "declarations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "assigned_to"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.documents": {
+      "name": "documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom_fichier": {
+          "name": "nom_fichier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type_mime": {
+          "name": "type_mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taille": {
+          "name": "taille",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chemin_stockage": {
+          "name": "chemin_stockage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "parent_document_id": {
+          "name": "parent_document_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "declaration_id": {
+          "name": "declaration_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acf_id": {
+          "name": "acf_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "documents_contribuable_idx": {
+          "name": "documents_contribuable_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "documents_categorie_idx": {
+          "name": "documents_categorie_idx",
+          "columns": [
+            {
+              "expression": "categorie",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "documents_contribuable_id_contribuables_id_fk": {
+          "name": "documents_contribuable_id_contribuables_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "documents_parent_document_id_documents_id_fk": {
+          "name": "documents_parent_document_id_documents_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "documents",
+          "columnsFrom": [
+            "parent_document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "documents_declaration_id_declarations_id_fk": {
+          "name": "documents_declaration_id_declarations_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "declarations",
+          "columnsFrom": [
+            "declaration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "documents_acf_id_acf_suivis_id_fk": {
+          "name": "documents_acf_id_acf_suivis_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "acf_suivis",
+          "columnsFrom": [
+            "acf_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "documents_uploaded_by_users_id_fk": {
+          "name": "documents_uploaded_by_users_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "users",
+          "columnsFrom": [
+            "uploaded_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.facture_lignes": {
+      "name": "facture_lignes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "facture_id": {
+          "name": "facture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "categorie_ligne",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'HONORAIRES'"
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant_ht": {
+          "name": "montant_ht",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taux_tva": {
+          "name": "taux_tva",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "declaration_id": {
+          "name": "declaration_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "facture_lignes_facture_idx": {
+          "name": "facture_lignes_facture_idx",
+          "columns": [
+            {
+              "expression": "facture_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "facture_lignes_facture_id_factures_id_fk": {
+          "name": "facture_lignes_facture_id_factures_id_fk",
+          "tableFrom": "facture_lignes",
+          "tableTo": "factures",
+          "columnsFrom": [
+            "facture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "facture_lignes_declaration_id_declarations_id_fk": {
+          "name": "facture_lignes_declaration_id_declarations_id_fk",
+          "tableFrom": "facture_lignes",
+          "tableTo": "declarations",
+          "columnsFrom": [
+            "declaration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.factures": {
+      "name": "factures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "numero": {
+          "name": "numero",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode": {
+          "name": "periode",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "objet": {
+          "name": "objet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_emission": {
+          "name": "date_emission",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_echeance": {
+          "name": "date_echeance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "statut_facture",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'BROUILLON'"
+        },
+        "total_ht": {
+          "name": "total_ht",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_tva": {
+          "name": "total_tva",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_ttc": {
+          "name": "total_ttc",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "montant_regle": {
+          "name": "montant_regle",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "envoyee_le": {
+          "name": "envoyee_le",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "canaux_envoi": {
+          "name": "canaux_envoi",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "factures_numero_unique": {
+          "name": "factures_numero_unique",
+          "columns": [
+            {
+              "expression": "numero",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "factures_ctb_periode_unique": {
+          "name": "factures_ctb_periode_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "factures_statut_idx": {
+          "name": "factures_statut_idx",
+          "columns": [
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "factures_echeance_idx": {
+          "name": "factures_echeance_idx",
+          "columns": [
+            {
+              "expression": "date_echeance",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "factures_contribuable_id_contribuables_id_fk": {
+          "name": "factures_contribuable_id_contribuables_id_fk",
+          "tableFrom": "factures",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "factures_created_by_users_id_fk": {
+          "name": "factures_created_by_users_id_fk",
+          "tableFrom": "factures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notifications": {
+      "name": "notifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "notification_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canal": {
+          "name": "canal",
+          "type": "notification_canal",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DASHBOARD'"
+        },
+        "ressource_type": {
+          "name": "ressource_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ressource_id": {
+          "name": "ressource_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lu": {
+          "name": "lu",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notifications_user_idx": {
+          "name": "notifications_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notifications_user_id_users_id_fk": {
+          "name": "notifications_user_id_users_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paie_bulletin_lignes": {
+      "name": "paie_bulletin_lignes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bulletin_id": {
+          "name": "bulletin_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "paie_type_ligne",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base": {
+          "name": "base",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "taux": {
+          "name": "taux",
+          "type": "numeric(7, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "en_nature": {
+          "name": "en_nature",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "paie_bulletin_lignes_bulletin_idx": {
+          "name": "paie_bulletin_lignes_bulletin_idx",
+          "columns": [
+            {
+              "expression": "bulletin_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ordre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paie_bulletin_lignes_bulletin_id_paie_bulletins_id_fk": {
+          "name": "paie_bulletin_lignes_bulletin_id_paie_bulletins_id_fk",
+          "tableFrom": "paie_bulletin_lignes",
+          "tableTo": "paie_bulletins",
+          "columnsFrom": [
+            "bulletin_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paie_bulletins": {
+      "name": "paie_bulletins",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "periode_id": {
+          "name": "periode_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "salarie_id": {
+          "name": "salarie_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elements": {
+          "name": "elements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "matricule": {
+          "name": "matricule",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom_complet": {
+          "name": "nom_complet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "poste": {
+          "name": "poste",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numero_cnps": {
+          "name": "numero_cnps",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salaire_base": {
+          "name": "salaire_base",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "regime_cnps": {
+          "name": "regime_cnps",
+          "type": "paie_regime_cnps",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "groupe_risque": {
+          "name": "groupe_risque",
+          "type": "paie_groupe_risque",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode_paiement": {
+          "name": "mode_paiement",
+          "type": "paie_mode_paiement",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "brut": {
+          "name": "brut",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "brut_cotisable": {
+          "name": "brut_cotisable",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "brut_imposable": {
+          "name": "brut_imposable",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnps_salarie": {
+          "name": "cnps_salarie",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "irpp": {
+          "name": "irpp",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cac": {
+          "name": "cac",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cfc_salarie": {
+          "name": "cfc_salarie",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tdl": {
+          "name": "tdl",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rav": {
+          "name": "rav",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "avances": {
+          "name": "avances",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "autres_retenues": {
+          "name": "autres_retenues",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_retenues": {
+          "name": "total_retenues",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_a_payer": {
+          "name": "net_a_payer",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnps_employeur": {
+          "name": "cnps_employeur",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cfc_employeur": {
+          "name": "cfc_employeur",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fne": {
+          "name": "fne",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "charges_employeur": {
+          "name": "charges_employeur",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reglement_ecriture_id": {
+          "name": "reglement_ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "paie_bulletins_periode_salarie_unique": {
+          "name": "paie_bulletins_periode_salarie_unique",
+          "columns": [
+            {
+              "expression": "periode_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "salarie_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paie_bulletins_periode_id_paie_periodes_id_fk": {
+          "name": "paie_bulletins_periode_id_paie_periodes_id_fk",
+          "tableFrom": "paie_bulletins",
+          "tableTo": "paie_periodes",
+          "columnsFrom": [
+            "periode_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "paie_bulletins_salarie_id_paie_salaries_id_fk": {
+          "name": "paie_bulletins_salarie_id_paie_salaries_id_fk",
+          "tableFrom": "paie_bulletins",
+          "tableTo": "paie_salaries",
+          "columnsFrom": [
+            "salarie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "paie_bulletins_reglement_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "paie_bulletins_reglement_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "paie_bulletins",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "reglement_ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paie_periodes": {
+      "name": "paie_periodes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode": {
+          "name": "periode",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "paie_statut_periode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'BROUILLON'"
+        },
+        "bareme_valide_du": {
+          "name": "bareme_valide_du",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ecriture_id": {
+          "name": "ecriture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "validee_le": {
+          "name": "validee_le",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "validee_par": {
+          "name": "validee_par",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "paie_periodes_ctb_periode_unique": {
+          "name": "paie_periodes_ctb_periode_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "periode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paie_periodes_contribuable_id_contribuables_id_fk": {
+          "name": "paie_periodes_contribuable_id_contribuables_id_fk",
+          "tableFrom": "paie_periodes",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "paie_periodes_ecriture_id_cpta_ecritures_id_fk": {
+          "name": "paie_periodes_ecriture_id_cpta_ecritures_id_fk",
+          "tableFrom": "paie_periodes",
+          "tableTo": "cpta_ecritures",
+          "columnsFrom": [
+            "ecriture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "paie_periodes_validee_par_users_id_fk": {
+          "name": "paie_periodes_validee_par_users_id_fk",
+          "tableFrom": "paie_periodes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "validee_par"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "paie_periodes_created_by_users_id_fk": {
+          "name": "paie_periodes_created_by_users_id_fk",
+          "tableFrom": "paie_periodes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paie_rubriques_fixes": {
+      "name": "paie_rubriques_fixes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "salarie_id": {
+          "name": "salarie_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cotisable": {
+          "name": "cotisable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "imposable": {
+          "name": "imposable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "paie_rubriques_fixes_salarie_idx": {
+          "name": "paie_rubriques_fixes_salarie_idx",
+          "columns": [
+            {
+              "expression": "salarie_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ordre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paie_rubriques_fixes_salarie_id_paie_salaries_id_fk": {
+          "name": "paie_rubriques_fixes_salarie_id_paie_salaries_id_fk",
+          "tableFrom": "paie_rubriques_fixes",
+          "tableTo": "paie_salaries",
+          "columnsFrom": [
+            "salarie_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paie_salaries": {
+      "name": "paie_salaries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "contribuable_id": {
+          "name": "contribuable_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "matricule": {
+          "name": "matricule",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prenoms": {
+          "name": "prenoms",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "niu": {
+          "name": "niu",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numero_cnps": {
+          "name": "numero_cnps",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_naissance": {
+          "name": "date_naissance",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_embauche": {
+          "name": "date_embauche",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date_sortie": {
+          "name": "date_sortie",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "poste": {
+          "name": "poste",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "echelon": {
+          "name": "echelon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salaire_base": {
+          "name": "salaire_base",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "regime_cnps": {
+          "name": "regime_cnps",
+          "type": "paie_regime_cnps",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'GENERAL'"
+        },
+        "groupe_risque": {
+          "name": "groupe_risque",
+          "type": "paie_groupe_risque",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'A'"
+        },
+        "mode_paiement": {
+          "name": "mode_paiement",
+          "type": "paie_mode_paiement",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'VIREMENT'"
+        },
+        "banque": {
+          "name": "banque",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avantages_nature": {
+          "name": "avantages_nature",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "tiers_id": {
+          "name": "tiers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "paie_salaries_ctb_matricule_unique": {
+          "name": "paie_salaries_ctb_matricule_unique",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "matricule",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paie_salaries_ctb_idx": {
+          "name": "paie_salaries_ctb_idx",
+          "columns": [
+            {
+              "expression": "contribuable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "actif",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paie_salaries_contribuable_id_contribuables_id_fk": {
+          "name": "paie_salaries_contribuable_id_contribuables_id_fk",
+          "tableFrom": "paie_salaries",
+          "tableTo": "contribuables",
+          "columnsFrom": [
+            "contribuable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "paie_salaries_tiers_id_cpta_tiers_id_fk": {
+          "name": "paie_salaries_tiers_id_cpta_tiers_id_fk",
+          "tableFrom": "paie_salaries",
+          "tableTo": "cpta_tiers",
+          "columnsFrom": [
+            "tiers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.parametres": {
+      "name": "parametres",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "cle": {
+          "name": "cle",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valeur": {
+          "name": "valeur",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "parametres_cle_unique": {
+          "name": "parametres_cle_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "cle"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.penalites": {
+      "name": "penalites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "declaration_id": {
+          "name": "declaration_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_calcul": {
+          "name": "base_calcul",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "statut_penalite",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ESTIMEE'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "penalites_declaration_idx": {
+          "name": "penalites_declaration_idx",
+          "columns": [
+            {
+              "expression": "declaration_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "penalites_declaration_id_declarations_id_fk": {
+          "name": "penalites_declaration_id_declarations_id_fk",
+          "tableFrom": "penalites",
+          "tableTo": "declarations",
+          "columnsFrom": [
+            "declaration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reglements": {
+      "name": "reglements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "facture_id": {
+          "name": "facture_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "mode_reglement",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'VIREMENT'"
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reglements_facture_idx": {
+          "name": "reglements_facture_idx",
+          "columns": [
+            {
+              "expression": "facture_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reglements_facture_id_factures_id_fk": {
+          "name": "reglements_facture_id_factures_id_fk",
+          "tableFrom": "reglements",
+          "tableTo": "factures",
+          "columnsFrom": [
+            "facture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reglements_created_by_users_id_fk": {
+          "name": "reglements_created_by_users_id_fk",
+          "tableFrom": "reglements",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.roles": {
+      "name": "roles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permissions": {
+          "name": "permissions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "roles_nom_unique": {
+          "name": "roles_nom_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nom"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "users_role_id_roles_id_fk": {
+          "name": "users_role_id_roles_id_fk",
+          "tableFrom": "users",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "role_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.categorie_ligne": {
+      "name": "categorie_ligne",
+      "schema": "public",
+      "values": [
+        "HONORAIRES",
+        "IMPOT_TRESOR",
+        "CNPS",
+        "FRAIS",
+        "AUTRE"
+      ]
+    },
+    "public.cpta_mode_amortissement": {
+      "name": "cpta_mode_amortissement",
+      "schema": "public",
+      "values": [
+        "LINEAIRE",
+        "DEGRESSIF"
+      ]
+    },
+    "public.cpta_origine": {
+      "name": "cpta_origine",
+      "schema": "public",
+      "values": [
+        "MANUELLE",
+        "A_NOUVEAUX",
+        "FACTURE_VENTE",
+        "FACTURE_ACHAT",
+        "REGLEMENT",
+        "PAIE",
+        "AMORTISSEMENT",
+        "CESSION",
+        "STOCK",
+        "CLOTURE"
+      ]
+    },
+    "public.cpta_statut_ecriture": {
+      "name": "cpta_statut_ecriture",
+      "schema": "public",
+      "values": [
+        "BROUILLON",
+        "VALIDEE",
+        "CONTREPASSEE"
+      ]
+    },
+    "public.cpta_statut_exercice": {
+      "name": "cpta_statut_exercice",
+      "schema": "public",
+      "values": [
+        "OUVERT",
+        "CLOS",
+        "VERROUILLE"
+      ]
+    },
+    "public.cpta_statut_immobilisation": {
+      "name": "cpta_statut_immobilisation",
+      "schema": "public",
+      "values": [
+        "EN_SERVICE",
+        "CEDEE",
+        "REBUT"
+      ]
+    },
+    "public.cpta_systeme": {
+      "name": "cpta_systeme",
+      "schema": "public",
+      "values": [
+        "NORMAL",
+        "SMT"
+      ]
+    },
+    "public.cpta_type_compte": {
+      "name": "cpta_type_compte",
+      "schema": "public",
+      "values": [
+        "ACTIF",
+        "PASSIF",
+        "CHARGE",
+        "PRODUIT"
+      ]
+    },
+    "public.cpta_type_journal": {
+      "name": "cpta_type_journal",
+      "schema": "public",
+      "values": [
+        "ACHAT",
+        "VENTE",
+        "BANQUE",
+        "CAISSE",
+        "DIVERS",
+        "A_NOUVEAUX"
+      ]
+    },
+    "public.cpta_type_piece": {
+      "name": "cpta_type_piece",
+      "schema": "public",
+      "values": [
+        "FACTURE_VENTE",
+        "FACTURE_ACHAT"
+      ]
+    },
+    "public.cpta_type_taxe": {
+      "name": "cpta_type_taxe",
+      "schema": "public",
+      "values": [
+        "TVA_COLLECTEE",
+        "TVA_DEDUCTIBLE",
+        "RETENUE",
+        "ACOMPTE"
+      ]
+    },
+    "public.declaration_type_v2": {
+      "name": "declaration_type_v2",
+      "schema": "public",
+      "values": [
+        "DSF",
+        "SOLDE_DSF",
+        "IRPP",
+        "BEF",
+        "BAIL",
+        "PRECOMPTE_LOYER",
+        "TVA",
+        "ACOMPTE_IS",
+        "CNPS",
+        "PATENTE",
+        "IGS",
+        "IGS_ANNUELLE",
+        "AUTRE"
+      ]
+    },
+    "public.declaration_type": {
+      "name": "declaration_type",
+      "schema": "public",
+      "values": [
+        "DSF",
+        "SOLDE_DSF",
+        "IRPP",
+        "BEF",
+        "BAIL",
+        "PRECOMPTE_LOYER",
+        "TVA",
+        "ACOMPTE_IS",
+        "CNPS",
+        "PATENTE",
+        "AUTRE"
+      ]
+    },
+    "public.mode_reglement": {
+      "name": "mode_reglement",
+      "schema": "public",
+      "values": [
+        "ESPECES",
+        "VIREMENT",
+        "MOBILE_MONEY",
+        "CHEQUE",
+        "AUTRE"
+      ]
+    },
+    "public.notification_canal": {
+      "name": "notification_canal",
+      "schema": "public",
+      "values": [
+        "DASHBOARD",
+        "EMAIL",
+        "SMS",
+        "WHATSAPP",
+        "PUSH"
+      ]
+    },
+    "public.notification_type": {
+      "name": "notification_type",
+      "schema": "public",
+      "values": [
+        "RAPPEL",
+        "ALERTE",
+        "INFO"
+      ]
+    },
+    "public.paie_groupe_risque": {
+      "name": "paie_groupe_risque",
+      "schema": "public",
+      "values": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "public.paie_mode_paiement": {
+      "name": "paie_mode_paiement",
+      "schema": "public",
+      "values": [
+        "VIREMENT",
+        "CHEQUE",
+        "ESPECES"
+      ]
+    },
+    "public.paie_regime_cnps": {
+      "name": "paie_regime_cnps",
+      "schema": "public",
+      "values": [
+        "GENERAL",
+        "AGRICOLE",
+        "ENSEIGNEMENT"
+      ]
+    },
+    "public.paie_statut_periode": {
+      "name": "paie_statut_periode",
+      "schema": "public",
+      "values": [
+        "BROUILLON",
+        "VALIDEE"
+      ]
+    },
+    "public.paie_type_ligne": {
+      "name": "paie_type_ligne",
+      "schema": "public",
+      "values": [
+        "GAIN",
+        "RETENUE",
+        "EMPLOYEUR"
+      ]
+    },
+    "public.periodicite_v2": {
+      "name": "periodicite_v2",
+      "schema": "public",
+      "values": [
+        "MENSUELLE",
+        "TRIMESTRIELLE",
+        "ANNUELLE"
+      ]
+    },
+    "public.periodicite": {
+      "name": "periodicite",
+      "schema": "public",
+      "values": [
+        "MENSUELLE",
+        "ANNUELLE"
+      ]
+    },
+    "public.regime_fiscal_v2": {
+      "name": "regime_fiscal_v2",
+      "schema": "public",
+      "values": [
+        "REEL",
+        "IGS"
+      ]
+    },
+    "public.regime_fiscal": {
+      "name": "regime_fiscal",
+      "schema": "public",
+      "values": [
+        "REEL",
+        "SIMPLIFIE",
+        "IFU"
+      ]
+    },
+    "public.role_nom": {
+      "name": "role_nom",
+      "schema": "public",
+      "values": [
+        "ADMIN",
+        "MANAGER",
+        "COLLABORATEUR",
+        "LECTURE"
+      ]
+    },
+    "public.statut_acf": {
+      "name": "statut_acf",
+      "schema": "public",
+      "values": [
+        "EN_COURS",
+        "BLOQUE",
+        "DELIVRE",
+        "REJETE"
+      ]
+    },
+    "public.statut_declaration": {
+      "name": "statut_declaration",
+      "schema": "public",
+      "values": [
+        "A_FAIRE",
+        "DEPOSEE",
+        "PAYEE",
+        "EN_RETARD",
+        "EXONERE"
+      ]
+    },
+    "public.statut_facture": {
+      "name": "statut_facture",
+      "schema": "public",
+      "values": [
+        "BROUILLON",
+        "ENVOYEE",
+        "PARTIELLE",
+        "PAYEE",
+        "EN_RETARD",
+        "ANNULEE"
+      ]
+    },
+    "public.statut_penalite": {
+      "name": "statut_penalite",
+      "schema": "public",
+      "values": [
+        "ESTIMEE",
+        "CONFIRMEE",
+        "ANNULEE"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

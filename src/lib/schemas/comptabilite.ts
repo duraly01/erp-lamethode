@@ -261,3 +261,45 @@ export const piecesQuerySchema = z.object({
   type: z.enum(["FACTURE_VENTE", "FACTURE_ACHAT"]).optional(),
   tiersId: idPositif.optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Immobilisations (E5)
+// ---------------------------------------------------------------------------
+
+export const immobilisationsQuerySchema = z.object({
+  contribuableId: idPositif,
+  exerciceId: idPositif.optional(),
+});
+
+export const immobilisationSchema = z
+  .object({
+    code: z.string().trim().min(1).max(30),
+    libelle: z.string().trim().min(1).max(200),
+    description: optionalText(2000),
+    compteId: idPositif,
+    compteAmortissementId: idPositif.nullable().optional(),
+    compteDotationId: idPositif.nullable().optional(),
+    dateAcquisition: dateString,
+    dateMiseEnService: dateString,
+    valeurOrigine: montantPositif,
+    valeurResiduelle: montantSaisi,
+    mode: z.enum(["LINEAIRE", "DEGRESSIF"]).default("LINEAIRE"),
+    /** Durée d'utilité en mois ; absente pour un bien qui ne s'amortit pas. */
+    dureeMois: z.coerce.number().int().min(1).max(1200).nullable().optional(),
+    fournisseurId: idPositif.nullable().optional(),
+    pieceId: idPositif.nullable().optional(),
+    referenceFacture: optionalText(120),
+    notes: optionalText(2000),
+  })
+  .refine((v) => v.dureeMois === null || v.dureeMois === undefined || (v.compteAmortissementId && v.compteDotationId), {
+    message: "Un bien qui s'amortit a besoin d'un compte d'amortissement et d'un compte de dotation.",
+    path: ["compteAmortissementId"],
+  });
+
+export const immobilisationCreateSchema = z.object({ contribuableId: idPositif }).and(immobilisationSchema);
+
+export const sortieImmobilisationSchema = z.object({
+  dateSortie: dateString,
+  prixCession: montantSaisi,
+  notes: optionalText(2000),
+});

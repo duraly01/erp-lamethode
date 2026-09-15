@@ -18,6 +18,7 @@ import {
 } from "@/lib/comptable/cloture";
 import { getExercice } from "./exercices";
 import { creerBrouillon, validerEcritureEnBase } from "./ecritures";
+import { biensSansDotation } from "./immobilisations";
 
 /**
  * Clôture d'exercice.
@@ -38,6 +39,8 @@ export type ControlesCloture = {
   suivant: { id: number; libelle: string; statut: string; aNouveauxDeja: boolean } | null;
   brouillons: number;
   rapprochementsOuverts: number;
+  /** Biens amortissables dont la dotation de l'exercice n'est pas passée. */
+  immobilisationsSansDotation: string[];
   balanceEquilibree: boolean;
   /** Vide si tout est en ordre ; sinon, ce qui empêche la clôture. */
   obstacles: string[];
@@ -89,6 +92,14 @@ export async function controlerCloture(exerciceId: number): Promise<ControlesClo
     obstacles.push("Un rapprochement bancaire est encore en cours : clôturez-le ou supprimez-le.");
   }
 
+  // Clôturer sans les dotations, c'est arrêter un bilan qui surévalue l'actif.
+  const immobilisationsSansDotation = await biensSansDotation(exerciceId);
+  if (immobilisationsSansDotation.length > 0) {
+    obstacles.push(
+      `${immobilisationsSansDotation.length} immobilisation${immobilisationsSansDotation.length > 1 ? "s" : ""} sans dotation pour l'exercice (${immobilisationsSansDotation.slice(0, 5).join(", ")}${immobilisationsSansDotation.length > 5 ? "…" : ""}) : passez les dotations.`,
+    );
+  }
+
   const [totaux] = await db
     .select({
       debit: sql<string>`coalesce(sum(${cptaLignesEcriture.debit}), 0)`,
@@ -107,6 +118,7 @@ export async function controlerCloture(exerciceId: number): Promise<ControlesClo
       : null,
     brouillons,
     rapprochementsOuverts,
+    immobilisationsSansDotation,
     balanceEquilibree,
     obstacles,
   };

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."cpta_origine" ADD VALUE 'CESSION' BEFORE 'STOCK';

@@ -689,6 +689,7 @@ export const cptaOrigineEnum = pgEnum("cpta_origine", [
   "REGLEMENT",
   "PAIE",
   "AMORTISSEMENT",
+  "CESSION",
   "STOCK",
   "CLOTURE",
 ]);
@@ -1157,6 +1158,84 @@ export const cptaPieceLignes = pgTable(
     }),
   },
   (t) => [index("cpta_piece_lignes_piece_idx").on(t.pieceId, t.ordre)],
+);
+
+// ---------------------------------------------------------------------------
+// IMMOBILISATIONS (E5)
+//
+// La fiche décrit le bien et ce qu'il faut pour l'amortir ; le plan ne se
+// stocke pas, il se recalcule — il est déterminé par la fiche. Seules les
+// dotations passées dans les livres laissent une trace, une par exercice,
+// liée à l'écriture qui les porte.
+// ---------------------------------------------------------------------------
+
+export const cptaModeAmortissementEnum = pgEnum("cpta_mode_amortissement", ["LINEAIRE", "DEGRESSIF"]);
+export const cptaStatutImmobilisationEnum = pgEnum("cpta_statut_immobilisation", ["EN_SERVICE", "CEDEE", "REBUT"]);
+
+export const cptaImmobilisations = pgTable(
+  "cpta_immobilisations",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 30 }).notNull(),
+    libelle: text("libelle").notNull(),
+    description: text("description"),
+    /** Compte d'immobilisation (classe 2) où le bien est porté. */
+    compteId: integer("compte_id")
+      .references(() => cptaComptes.id, { onDelete: "restrict" })
+      .notNull(),
+    /** Compte d'amortissement (28x) et de dotation (68x) ; nuls pour un bien qui ne s'amortit pas. */
+    compteAmortissementId: integer("compte_amortissement_id").references(() => cptaComptes.id, { onDelete: "restrict" }),
+    compteDotationId: integer("compte_dotation_id").references(() => cptaComptes.id, { onDelete: "restrict" }),
+    dateAcquisition: date("date_acquisition").notNull(),
+    dateMiseEnService: date("date_mise_en_service").notNull(),
+    valeurOrigine: numeric("valeur_origine", { precision: 14, scale: 2 }).notNull(),
+    valeurResiduelle: numeric("valeur_residuelle", { precision: 14, scale: 2 }).default("0.00").notNull(),
+    mode: cptaModeAmortissementEnum("mode").default("LINEAIRE").notNull(),
+    /** Durée d'utilité en mois ; nulle pour un terrain. */
+    dureeMois: integer("duree_mois"),
+    fournisseurId: integer("fournisseur_id").references(() => cptaTiers.id, { onDelete: "set null" }),
+    /** Facture d'achat saisie ici, quand le bien en vient. */
+    pieceId: integer("piece_id").references(() => cptaPieces.id, { onDelete: "set null" }),
+    referenceFacture: varchar("reference_facture", { length: 120 }),
+    statut: cptaStatutImmobilisationEnum("statut").default("EN_SERVICE").notNull(),
+    dateSortie: date("date_sortie"),
+    prixCession: numeric("prix_cession", { precision: 14, scale: 2 }),
+    ecritureSortieId: integer("ecriture_sortie_id").references(() => cptaEcritures.id, { onDelete: "set null" }),
+    notes: text("notes"),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_immobilisations_ctb_code_unique").on(t.contribuableId, t.code),
+    index("cpta_immobilisations_ctb_idx").on(t.contribuableId, t.statut),
+  ],
+);
+
+/** Une dotation passée dans les livres : le bien, l'exercice, le montant, l'écriture. */
+export const cptaDotations = pgTable(
+  "cpta_dotations",
+  {
+    id: serial("id").primaryKey(),
+    immobilisationId: integer("immobilisation_id")
+      .references(() => cptaImmobilisations.id, { onDelete: "cascade" })
+      .notNull(),
+    exerciceId: integer("exercice_id")
+      .references(() => cptaExercices.id, { onDelete: "restrict" })
+      .notNull(),
+    montant: numeric("montant", { precision: 14, scale: 2 }).notNull(),
+    ecritureId: integer("ecriture_id")
+      .references(() => cptaEcritures.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("cpta_dotations_immo_exercice_unique").on(t.immobilisationId, t.exerciceId),
+    index("cpta_dotations_exercice_idx").on(t.exerciceId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -1634,6 +1713,21 @@ export const cptaPieceLignesRelations = relations(cptaPieceLignes, ({ one }) => 
   piece: one(cptaPieces, { fields: [cptaPieceLignes.pieceId], references: [cptaPieces.id] }),
   compte: one(cptaComptes, { fields: [cptaPieceLignes.compteId], references: [cptaComptes.id] }),
   taxe: one(cptaTaxes, { fields: [cptaPieceLignes.taxeId], references: [cptaTaxes.id] }),
+}));
+
+export const cptaImmobilisationsRelations = relations(cptaImmobilisations, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [cptaImmobilisations.contribuableId], references: [contribuables.id] }),
+  compte: one(cptaComptes, { fields: [cptaImmobilisations.compteId], references: [cptaComptes.id] }),
+  fournisseur: one(cptaTiers, { fields: [cptaImmobilisations.fournisseurId], references: [cptaTiers.id] }),
+  piece: one(cptaPieces, { fields: [cptaImmobilisations.pieceId], references: [cptaPieces.id] }),
+  ecritureSortie: one(cptaEcritures, { fields: [cptaImmobilisations.ecritureSortieId], references: [cptaEcritures.id] }),
+  dotations: many(cptaDotations),
+}));
+
+export const cptaDotationsRelations = relations(cptaDotations, ({ one }) => ({
+  immobilisation: one(cptaImmobilisations, { fields: [cptaDotations.immobilisationId], references: [cptaImmobilisations.id] }),
+  exercice: one(cptaExercices, { fields: [cptaDotations.exerciceId], references: [cptaExercices.id] }),
+  ecriture: one(cptaEcritures, { fields: [cptaDotations.ecritureId], references: [cptaEcritures.id] }),
 }));
 
 export const paieSalariesRelations = relations(paieSalaries, ({ one, many }) => ({

@@ -64,6 +64,20 @@
       "when": 1789468593528,
       "tag": "0008_e4_paie_reglement",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789471132197,
+      "tag": "0009_e5_immobilisations",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789471179077,
+      "tag": "0010_e5_origine_cession",
+      "breakpoints": true
     }
   ]
 }
