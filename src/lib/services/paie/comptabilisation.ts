@@ -44,7 +44,7 @@ const NUMEROS: Record<keyof ComptesPaie, string[]> = {
   autresImpots: ["442", "447"],
 };
 
-async function comptesPaie(contribuableId: number): Promise<ComptesPaie> {
+export async function comptesPaie(contribuableId: number): Promise<ComptesPaie> {
   const rows = await db
     .select({ id: cptaComptes.id, numero: cptaComptes.numero })
     .from(cptaComptes)

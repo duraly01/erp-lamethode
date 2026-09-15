@@ -57,6 +57,13 @@
       "when": 1789133189915,
       "tag": "0007_e4_paie_tiers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789468593528,
+      "tag": "0008_e4_paie_reglement",
+      "breakpoints": true
     }
   ]
 }

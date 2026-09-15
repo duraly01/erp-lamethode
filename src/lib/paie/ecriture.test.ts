@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { totauxEcriture } from "@/lib/comptable/ecriture";
-import { genererEcriturePaie, EcriturePaieError, type ComptesPaie, type TotauxPaie } from "./ecriture";
+import { genererEcriturePaie, genererEcritureReglementSalaires, EcriturePaieError, type ComptesPaie, type TotauxPaie } from "./ecriture";
 
 const fcfa = (n: number) => n * 100;
 
@@ -95,5 +95,28 @@ describe("écriture de paie", () => {
   it("refuse des totaux incohérents plutôt que d'écrire un déséquilibre", () => {
     expect(() => genererEcriturePaie({ ...TOTAUX, irpp: TOTAUX.irpp + 1 }, COMPTES, "juin 2026")).toThrow(EcriturePaieError);
     expect(() => genererEcriturePaie({ ...TOTAUX, netAPayer: TOTAUX.netAPayer + 1 }, COMPTES, "juin 2026")).toThrow(/détail par salarié/);
+  });
+});
+
+describe("écriture de règlement des salaires", () => {
+  const salaires = [
+    { tiersId: 77, libelle: "S001 MBARGA Jean", netAPayer: fcfa(348_550) },
+    { tiersId: 78, libelle: "S002 NGO Marie", netAPayer: fcfa(120_000) },
+    { tiersId: 79, libelle: "S003 sans net", netAPayer: 0 },
+  ];
+  const lignes = genererEcritureReglementSalaires(salaires, { remunerationsDues: 422, tresorerie: 5211 }, "juin 2026");
+
+  it("débite le 422 de chaque salarié sur son tiers, et crédite la trésorerie du total", () => {
+    expect(totauxEcriture(lignes).equilibree).toBe(true);
+    expect(lignes).toHaveLength(3);
+    expect(lignes[0]).toMatchObject({ compteId: 422, tiersId: 77, debit: "348550.00", libelle: "Salaire juin 2026 — S001 MBARGA Jean" });
+    expect(lignes[1]).toMatchObject({ compteId: 422, tiersId: 78, debit: "120000.00" });
+    expect(lignes[2]).toMatchObject({ compteId: 5211, credit: "468550.00" });
+    expect(lignes[2].tiersId).toBeUndefined();
+  });
+
+  it("ignore un net nul, et refuse un règlement où il n'y a rien à payer", () => {
+    expect(lignes.some((l) => l.tiersId === 79)).toBe(false);
+    expect(() => genererEcritureReglementSalaires([salaires[2]], { remunerationsDues: 422, tresorerie: 5211 }, "juin 2026")).toThrow(EcriturePaieError);
   });
 });

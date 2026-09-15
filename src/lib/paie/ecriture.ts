@@ -108,3 +108,48 @@ export function genererEcriturePaie(t: TotauxPaie, c: ComptesPaie, libelleMois: 
   }
   return lignes;
 }
+
+// ---------------------------------------------------------------------------
+// Règlement des salaires
+// ---------------------------------------------------------------------------
+
+/**
+ * Le net d'un bulletin à payer : le tiers du salarié, ce qu'on lui doit.
+ */
+export type SalaireARegler = {
+  tiersId: number;
+  libelle: string;
+  netAPayer: number;
+};
+
+/**
+ * Écriture de règlement des salaires, sur un journal de trésorerie :
+ *
+ *   Débit  422 rémunérations dues   — le net, par salarié, sur son tiers
+ *   Crédit 521 banque ou 571 caisse — le total versé
+ *
+ * Une ligne de débit par salarié, sur son tiers : c'est ce qui permet de la
+ * lettrer avec le net crédité par l'écriture de paie, salarié par salarié.
+ * Un bulletin à net nul n'a rien à régler et ne produit pas de ligne.
+ */
+export function genererEcritureReglementSalaires(
+  salaires: SalaireARegler[],
+  comptes: { remunerationsDues: number; tresorerie: number },
+  libelleMois: string,
+): LigneGeneree[] {
+  const dus = salaires.filter((s) => s.netAPayer > 0);
+  if (dus.length === 0) throw new EcriturePaieError("Aucun net à régler.");
+  if (dus.some((s) => !Number.isSafeInteger(s.netAPayer))) {
+    throw new EcriturePaieError("Un net à payer n'est pas un montant valide.");
+  }
+  const total = sommeMontants(dus.map((s) => s.netAPayer));
+  return [
+    ...dus.map((s) => ({
+      compteId: comptes.remunerationsDues,
+      tiersId: s.tiersId,
+      libelle: `Salaire ${libelleMois} — ${s.libelle}`,
+      debit: formatMontant(s.netAPayer),
+    })),
+    { compteId: comptes.tresorerie, libelle: `Salaires ${libelleMois}`, credit: formatMontant(total) },
+  ];
+}

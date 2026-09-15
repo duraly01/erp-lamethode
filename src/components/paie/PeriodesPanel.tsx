@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CalendarPlus, CheckCircle2, FileSpreadsheet, Printer, RefreshCw, Trash2, Plus } from "lucide-react";
+import { Banknote, BookOpen, CalendarPlus, CheckCircle2, FileSpreadsheet, Printer, RefreshCw, Trash2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,16 +10,20 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useCan } from "@/hooks/useCan";
 import { apiSend, messageErreur } from "@/lib/api-client";
 import { formatDateFR } from "@/lib/constants";
+import { jourAuCameroun } from "@/lib/dates";
 import {
   francs,
   libelleMois,
   useBulletin,
   usePeriode,
   usePeriodes,
+  usePreparationReglement,
+  MODE_PAIEMENT_LABELS,
   type Bulletin,
   type ElementsBulletin,
   type LigneBulletin,
@@ -40,7 +44,7 @@ const STATUT: Record<StatutPeriode, { libelle: string; classe: string }> = {
   VALIDEE: { libelle: "Validé", classe: "bg-success/15 text-success" },
 };
 
-const CLES = ["paie-periodes", "paie-periode", "paie-bulletin"];
+const CLES = ["paie-periodes", "paie-periode", "paie-bulletin", "paie-reglement"];
 
 /** Un lien qui s'ouvre dans un onglet, habillé comme un bouton « outline » petit. */
 const LIEN_BOUTON =
@@ -251,6 +255,183 @@ function BulletinDialog({ id, modifiable, onFerme }: { id: number; modifiable: b
 }
 
 // ---------------------------------------------------------------------------
+// Règlement des salaires
+// ---------------------------------------------------------------------------
+
+type ResultatReglement = { ecriture: { numeroPiece: string | null }; bulletinIds: number[] };
+
+/**
+ * Paie les nets d'un mois comptabilisé sur un journal de trésorerie. Le
+ * journal choisi coche de lui-même les bulletins de son mode de paiement —
+ * virements et chèques en banque, espèces en caisse — non encore réglés ;
+ * le comptable ajuste, puis règle. Chaque net est lettré avec son règlement.
+ */
+function ReglementDialog({ periodeId, onFerme, onRegle }: { periodeId: number; onFerme: () => void; onRegle: (r: ResultatReglement) => void }) {
+  const { data, isLoading } = usePreparationReglement(periodeId);
+  const [journalChoisi, setJournalChoisi] = useState<number | null>(null);
+  const [date, setDate] = useState(jourAuCameroun());
+  const [reference, setReference] = useState("");
+  // Tant que le comptable n'a rien touché, la sélection suit le journal ; un
+  // changement de journal y ramène.
+  const [cochesManuelles, setCochesManuelles] = useState<Set<number> | null>(null);
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const journalId = journalChoisi ?? data?.journaux[0]?.id ?? null;
+  const journal = data?.journaux.find((j) => j.id === journalId) ?? null;
+  const reglables = useMemo(() => (data?.bulletins ?? []).filter((b) => b.reglementEcritureId === null && Number(b.netAPayer) > 0), [data]);
+  const coches = useMemo(
+    () => cochesManuelles ?? new Set(reglables.filter((b) => journal && b.typeJournal === journal.type).map((b) => b.id)),
+    [cochesManuelles, reglables, journal],
+  );
+  const setCoches = setCochesManuelles;
+
+  const total = reglables.filter((b) => coches.has(b.id)).reduce((t, b) => t + Number(b.netAPayer), 0);
+
+  async function regler(e: React.FormEvent) {
+    e.preventDefault();
+    if (!journalId) return;
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const r = await apiSend<ResultatReglement>(`/api/paie/periodes/${periodeId}/reglement`, "POST", {
+        journalId,
+        dateEcriture: date,
+        reference: reference || null,
+        bulletinIds: [...coches],
+      });
+      onRegle(r!);
+    } catch (err) {
+      setErreur(messageErreur(err));
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onFerme}
+      title="Régler les salaires"
+      description="Une écriture de trésorerie, une ligne par salarié sur son compte, lettrée avec le net dû par la paie."
+      className="max-w-3xl"
+    >
+      {isLoading && (
+        <div className="p-6 text-center">
+          <Spinner />
+        </div>
+      )}
+      {data && !data.comptabilisee && <p className="text-sm text-muted-foreground">Comptabilisez le mois avant de régler les salaires.</p>}
+      {data && data.comptabilisee && data.journaux.length === 0 && (
+        <p className="text-sm text-muted-foreground">Aucun journal de banque ou de caisse pour ce contribuable.</p>
+      )}
+      {data && data.comptabilisee && data.journaux.length > 0 && (
+        <form onSubmit={regler} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="r-journal">Journal</Label>
+              <Select
+                id="r-journal"
+                value={journalId ?? ""}
+                onChange={(e) => {
+                  setJournalChoisi(Number(e.target.value));
+                  setCochesManuelles(null);
+                }}
+              >
+                {data.journaux.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.code} — {j.libelle}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="r-date">Date du règlement</Label>
+              <Input id="r-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </div>
+            <div>
+              <Label htmlFor="r-ref">Référence</Label>
+              <Input id="r-ref" placeholder="N° d'ordre de virement…" value={reference} onChange={(e) => setReference(e.target.value)} maxLength={60} />
+            </div>
+          </div>
+
+          <Card className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-2 text-left font-medium">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      aria-label="Tout cocher"
+                      checked={reglables.length > 0 && reglables.every((b) => coches.has(b.id))}
+                      onChange={(e) => setCoches(e.target.checked ? new Set(reglables.map((b) => b.id)) : new Set())}
+                    />
+                  </th>
+                  <th className="p-2 text-left font-medium">Salarié</th>
+                  <th className="p-2 text-left font-medium">Mode</th>
+                  <th className="p-2 text-right font-medium">Net à payer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.bulletins.map((b) => {
+                  const regle = b.reglementEcritureId !== null;
+                  const sansNet = Number(b.netAPayer) <= 0;
+                  return (
+                    <tr key={b.id} className={"border-t border-border" + (regle || sansNet ? " text-muted-foreground" : "")}>
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-primary"
+                          aria-label={`Régler ${b.nomComplet}`}
+                          disabled={regle || sansNet}
+                          checked={coches.has(b.id)}
+                          onChange={(e) => {
+                            const n = new Set(coches);
+                            if (e.target.checked) n.add(b.id);
+                            else n.delete(b.id);
+                            setCoches(n);
+                          }}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <span className="font-mono text-xs">{b.matricule}</span> <span className="font-medium">{b.nomComplet}</span>
+                        {regle && <Badge className="ml-2 border-transparent bg-success/15 text-success">Payé</Badge>}
+                      </td>
+                      <td className="p-2">{MODE_PAIEMENT_LABELS[b.modePaiement]}</td>
+                      <td className="p-2 text-right tabular-nums">{francs(b.netAPayer)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="border-t-2 border-border font-medium">
+                <tr>
+                  <td className="p-2" colSpan={3}>
+                    {coches.size} salarié{coches.size > 1 ? "s" : ""} à régler{journal ? ` sur ${journal.code}` : ""}
+                  </td>
+                  <td className="p-2 text-right tabular-nums">{francs(total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </Card>
+
+          {erreur && <p className="rounded-md border border-danger/40 bg-danger/5 p-3 text-sm text-danger">{erreur}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onFerme}>
+              Annuler
+            </Button>
+            <Button type="submit" disabled={enCours || coches.size === 0}>
+              {enCours && <Spinner />}
+              Régler {francs(total)}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Un mois
 // ---------------------------------------------------------------------------
 
@@ -260,10 +441,14 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
   const [bulletin, setBulletin] = useState<number | null>(null);
   const [aValider, setAValider] = useState(false);
   const [aSupprimer, setASupprimer] = useState(false);
+  const [reglement, setReglement] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const brouillon = periode.statut === "BROUILLON";
+  // Les nets restant à payer : ce qui n'est pas réglé et n'est pas nul.
+  const aRegler = periode.bulletins.filter((b) => b.reglementEcritureId === null && Number(b.netAPayer) > 0);
+  const regles = periode.bulletins.filter((b) => b.reglementEcritureId !== null);
   const rafraichir = () => CLES.forEach((c) => qc.invalidateQueries({ queryKey: [c] }));
 
   async function agir(action: () => Promise<unknown>, apres?: () => void) {
@@ -305,6 +490,12 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
         </span>
         {periode.ecritureId && <Badge className="border-transparent bg-success/15 text-success">Comptabilisé</Badge>}
         {!brouillon && !periode.ecritureId && <Badge className="border-transparent bg-warning/15 text-warning">Écriture en attente</Badge>}
+        {periode.ecritureId && aRegler.length === 0 && <Badge className="border-transparent bg-success/15 text-success">Salaires réglés</Badge>}
+        {periode.ecritureId && aRegler.length > 0 && regles.length > 0 && (
+          <Badge className="border-transparent bg-warning/15 text-warning">
+            {regles.length}/{periode.bulletins.length} réglé{regles.length > 1 ? "s" : ""}
+          </Badge>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
           <a href={`/api/paie/periodes/${periode.id}/pdf`} target="_blank" rel="noreferrer" className={LIEN_BOUTON}>
             <Printer className="h-4 w-4" />
@@ -318,6 +509,12 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
             <Button variant="outline" size="sm" disabled={enCours} onClick={() => agir(() => apiSend(`/api/paie/periodes/${periode.id}/comptabiliser`, "POST"), () => setInfo("Écriture de paie passée dans les livres."))}>
               <BookOpen className="h-4 w-4" />
               Comptabiliser
+            </Button>
+          )}
+          {periode.ecritureId && aRegler.length > 0 && can("paie", "update") && (
+            <Button size="sm" disabled={enCours} onClick={() => setReglement(true)}>
+              <Banknote className="h-4 w-4" />
+              Régler les salaires
             </Button>
           )}
           {brouillon && can("paie", "update") && (
@@ -384,7 +581,10 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
                 <td className="p-3 text-right tabular-nums">{francs(b.cnpsSalarie)}</td>
                 <td className="p-3 text-right tabular-nums">{francs(Number(b.irpp) + Number(b.cac))}</td>
                 <td className="p-3 text-right tabular-nums">{francs(b.totalRetenues)}</td>
-                <td className="p-3 text-right font-medium tabular-nums">{francs(b.netAPayer)}</td>
+                <td className="p-3 text-right font-medium tabular-nums">
+                  {b.reglementEcritureId !== null && <Badge className="mr-2 border-transparent bg-success/15 text-success">Payé</Badge>}
+                  {francs(b.netAPayer)}
+                </td>
                 <td className="p-3 text-right tabular-nums text-muted-foreground">{francs(b.chargesEmployeur)}</td>
               </tr>
             ))}
@@ -406,6 +606,19 @@ function PeriodeVue({ periode, onSupprimee }: { periode: PeriodeDetail; onSuppri
       </Card>
 
       {bulletin !== null && <BulletinDialog id={bulletin} modifiable={brouillon && can("paie", "update")} onFerme={() => setBulletin(null)} />}
+      {reglement && (
+        <ReglementDialog
+          periodeId={periode.id}
+          onFerme={() => setReglement(false)}
+          onRegle={(r) => {
+            setReglement(false);
+            rafraichir();
+            setErreur(null);
+            const n = r.bulletinIds.length;
+            setInfo(`${n} salaire${n > 1 ? "s" : ""} réglé${n > 1 ? "s" : ""} — écriture ${r.ecriture.numeroPiece ?? ""}, nets lettrés.`);
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={aValider}

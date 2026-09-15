@@ -101,6 +101,8 @@ export type Bulletin = {
   cfcEmployeur: string;
   fne: string;
   chargesEmployeur: string;
+  /** Écriture de trésorerie qui a réglé le net, ou null tant qu'il n'est pas payé. */
+  reglementEcritureId: number | null;
 };
 
 export type PeriodeDetail = {
@@ -130,6 +132,22 @@ export type LigneBulletin = {
 export type BulletinDetail = Bulletin & {
   periode: { id: number; periode: string; statut: StatutPeriode; contribuableId: number };
   lignes: LigneBulletin[];
+};
+
+/** Ce que le règlement d'un mois a besoin de savoir : journaux de trésorerie et état des bulletins. */
+export type PreparationReglement = {
+  periodeId: number;
+  comptabilisee: boolean;
+  journaux: { id: number; code: string; libelle: string; type: string; compteContrepartieId: number | null }[];
+  bulletins: {
+    id: number;
+    matricule: string;
+    nomComplet: string;
+    modePaiement: ModePaiement;
+    typeJournal: "BANQUE" | "CAISSE";
+    netAPayer: string;
+    reglementEcritureId: number | null;
+  }[];
 };
 
 export function francs(numeric: string | number | null | undefined) {
@@ -207,5 +225,13 @@ export function useBulletin(id: number | null) {
     queryKey: ["paie-bulletin", id],
     queryFn: () => apiGet<BulletinDetail>(`/api/paie/bulletins/${id}`),
     enabled: id !== null,
+  });
+}
+
+export function usePreparationReglement(periodeId: number | null) {
+  return useQuery({
+    queryKey: ["paie-reglement", periodeId],
+    queryFn: () => apiGet<PreparationReglement>(`/api/paie/periodes/${periodeId}/reglement`),
+    enabled: periodeId !== null,
   });
 }

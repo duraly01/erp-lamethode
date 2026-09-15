@@ -1294,6 +1294,8 @@ export const paieBulletins = pgTable(
     cfcEmployeur: numeric("cfc_employeur", { precision: 14, scale: 2 }).notNull(),
     fne: numeric("fne", { precision: 14, scale: 2 }).notNull(),
     chargesEmployeur: numeric("charges_employeur", { precision: 14, scale: 2 }).notNull(),
+    /** Écriture de trésorerie qui a réglé le net : posée au paiement, avec le lettrage du 422. */
+    reglementEcritureId: integer("reglement_ecriture_id").references(() => cptaEcritures.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1654,6 +1656,7 @@ export const paiePeriodesRelations = relations(paiePeriodes, ({ one, many }) => 
 export const paieBulletinsRelations = relations(paieBulletins, ({ one, many }) => ({
   periode: one(paiePeriodes, { fields: [paieBulletins.periodeId], references: [paiePeriodes.id] }),
   salarie: one(paieSalaries, { fields: [paieBulletins.salarieId], references: [paieSalaries.id] }),
+  reglement: one(cptaEcritures, { fields: [paieBulletins.reglementEcritureId], references: [cptaEcritures.id] }),
   lignes: many(paieBulletinLignes),
 }));
 

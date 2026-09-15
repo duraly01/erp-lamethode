@@ -94,6 +94,15 @@ export const elementsBulletinSchema = z.object({
 
 export type ElementsBulletinSaisis = z.infer<typeof elementsBulletinSchema>;
 
+/** Règlement des salaires d'un mois sur un journal de trésorerie. */
+export const reglementSalairesSchema = z.object({
+  journalId: idPositif,
+  dateEcriture: dateString,
+  reference: optionalText(60),
+  /** À défaut, les bulletins du mode de paiement du journal, non encore réglés. */
+  bulletinIds: z.array(idPositif).max(500).optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Barème
 // ---------------------------------------------------------------------------

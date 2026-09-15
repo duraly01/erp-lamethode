@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 /**
  * Tests d'intégration de l'API de paie (E4).
@@ -28,6 +28,7 @@ const comptabiliserRoute = await import("@/app/api/paie/periodes/[id]/comptabili
 const bulletinPdfRoute = await import("@/app/api/paie/bulletins/[id]/pdf/route");
 const periodePdfRoute = await import("@/app/api/paie/periodes/[id]/pdf/route");
 const dipeRoute = await import("@/app/api/paie/periodes/[id]/dipe/route");
+const reglementRoute = await import("@/app/api/paie/periodes/[id]/reglement/route");
 const exercicesRoute = await import("@/app/api/comptabilite/exercices/route");
 
 const NOM_TEMOIN = "ZZ TEST API PAIE";
@@ -416,5 +417,135 @@ describe("après validation : écriture, CNPS, documents", () => {
   it("refuse 403 en lecture seule sur la comptabilisation", async () => {
     connecte(LECTURE_SEULE);
     expect((await comptabiliserRoute.POST(post(""), ctx(periodeId))).status).toBe(403);
+  });
+});
+
+describe("règlement des salaires", () => {
+  let journalBanque: number;
+  let journalCaisse: number;
+  let bulletinS009: number;
+  let compte422: number;
+
+  async function lignesDe(ecritureId: number) {
+    return db
+      .select({
+        numero: schema.cptaComptes.numero,
+        tiersId: schema.cptaLignesEcriture.tiersId,
+        debit: schema.cptaLignesEcriture.debit,
+        credit: schema.cptaLignesEcriture.credit,
+        lettrage: schema.cptaLignesEcriture.lettrage,
+      })
+      .from(schema.cptaLignesEcriture)
+      .innerJoin(schema.cptaComptes, eq(schema.cptaLignesEcriture.compteId, schema.cptaComptes.id))
+      .where(eq(schema.cptaLignesEcriture.ecritureId, ecritureId));
+  }
+
+  it("annonce les journaux de trésorerie et l'état de chaque bulletin", async () => {
+    connecte(LECTURE_SEULE);
+    const res = await reglementRoute.GET(get(""), ctx(periodeId));
+    expect(res.status).toBe(200);
+    const r = await res.json();
+    expect(r.comptabilisee).toBe(true);
+    const codes = r.journaux.map((j: { code: string }) => j.code);
+    expect(codes).toEqual(expect.arrayContaining(["BQ", "CA"]));
+    journalBanque = r.journaux.find((j: { code: string }) => j.code === "BQ").id;
+    journalCaisse = r.journaux.find((j: { code: string }) => j.code === "CA").id;
+    expect(r.bulletins).toHaveLength(2);
+    expect(r.bulletins.every((b: { reglementEcritureId: number | null }) => b.reglementEcritureId === null)).toBe(true);
+    // Les deux sont payés par virement : ils se règlent en banque.
+    expect(r.bulletins.every((b: { typeJournal: string }) => b.typeJournal === "BANQUE")).toBe(true);
+    bulletinS009 = r.bulletins.find((b: { matricule: string }) => b.matricule === "S009").id;
+    const [c] = await db
+      .select({ id: schema.cptaComptes.id })
+      .from(schema.cptaComptes)
+      .where(and(eq(schema.cptaComptes.contribuableId, contribuableId), eq(schema.cptaComptes.numero, "422")));
+    compte422 = c.id;
+  });
+
+  it("refuse 403 en lecture seule, et un journal qui n'est pas de trésorerie", async () => {
+    connecte(LECTURE_SEULE);
+    expect((await reglementRoute.POST(post("", { journalId: journalBanque, dateEcriture: "2026-07-02" }), ctx(periodeId))).status).toBe(403);
+    connecte();
+    const [od] = await db
+      .select({ id: schema.cptaJournaux.id })
+      .from(schema.cptaJournaux)
+      .where(and(eq(schema.cptaJournaux.contribuableId, contribuableId), eq(schema.cptaJournaux.type, "DIVERS")));
+    const res = await reglementRoute.POST(post("", { journalId: od.id, dateEcriture: "2026-07-02" }), ctx(periodeId));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toMatch(/trésorerie/);
+  });
+
+  it("règle un salarié désigné en caisse : débit de son 422, crédit de la caisse, lettrage posé", async () => {
+    connecte();
+    const res = await reglementRoute.POST(post("", { journalId: journalCaisse, dateEcriture: "2026-07-02", bulletinIds: [bulletinS009] }), ctx(periodeId));
+    expect(res.status).toBe(201);
+    const r = await res.json();
+    expect(r.ecriture.statut).toBe("VALIDEE");
+    expect(r.ecriture.origine).toBe("REGLEMENT");
+    expect(r.ecriture.numeroPiece).toMatch(/^CA2026-/);
+    expect(r.ecriture.dateEcriture).toBe("2026-07-02");
+    expect(r.bulletinIds).toEqual([bulletinS009]);
+    expect(r.lettrages).toHaveLength(1);
+
+    const lignes = await lignesDe(r.ecriture.id);
+    expect(lignes).toHaveLength(2);
+    const debit = lignes.find((l) => l.numero === "422")!;
+    const credit = lignes.find((l) => l.numero === "571")!;
+    expect(debit.tiersId).not.toBeNull();
+    expect(debit.debit).toBe(credit.credit);
+    expect(debit.lettrage).toBe(r.lettrages[0]);
+
+    // Le net dû de S009 par l'écriture de paie porte le même code.
+    const p = await (await periodeRoute.GET(get(""), ctx(periodeId))).json();
+    const paie = await lignesDe(p.ecritureId);
+    const netS009 = paie.find((l) => l.numero === "422" && l.tiersId === debit.tiersId)!;
+    expect(netS009.credit).toBe(debit.debit);
+    expect(netS009.lettrage).toBe(r.lettrages[0]);
+    // Le 422 de S009 est soldé, celui de S001 reste ouvert.
+    const { getPostesOuverts } = await import("@/lib/services/comptabilite/lettrage");
+    const ouverts = await getPostesOuverts(compte422);
+    expect(ouverts.some((o) => o.tiersId === debit.tiersId)).toBe(false);
+    expect(ouverts).toHaveLength(1);
+
+    const b = p.bulletins.find((x: { id: number }) => x.id === bulletinS009);
+    expect(b.reglementEcritureId).toBe(r.ecriture.id);
+  });
+
+  it("ne règle pas deux fois un bulletin désigné", async () => {
+    connecte();
+    const res = await reglementRoute.POST(post("", { journalId: journalCaisse, dateEcriture: "2026-07-02", bulletinIds: [bulletinS009] }), ctx(periodeId));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.message).toMatch(/Déjà réglé : S009/);
+  });
+
+  it("règle le reste en banque par défaut, sans reprendre ce qui est payé ; puis il n'y a plus rien à régler", async () => {
+    connecte();
+    const res = await reglementRoute.POST(post("", { journalId: journalBanque, dateEcriture: "2026-07-03", reference: "VIR 1234" }), ctx(periodeId));
+    expect(res.status).toBe(201);
+    const r = await res.json();
+    expect(r.ecriture.numeroPiece).toMatch(/^BQ2026-/);
+    expect(r.ecriture.reference).toBe("VIR 1234");
+    expect(r.bulletinIds).toEqual([bulletinId]);
+    const lignes = await lignesDe(r.ecriture.id);
+    expect(lignes.find((l) => l.numero === "5211")?.credit).toBeDefined();
+
+    const { getPostesOuverts } = await import("@/lib/services/comptabilite/lettrage");
+    expect(await getPostesOuverts(compte422)).toHaveLength(0);
+
+    const etat = await (await reglementRoute.GET(get(""), ctx(periodeId))).json();
+    expect(etat.bulletins.every((b: { reglementEcritureId: number | null }) => b.reglementEcritureId !== null)).toBe(true);
+
+    const encore = await reglementRoute.POST(post("", { journalId: journalBanque, dateEcriture: "2026-07-03" }), ctx(periodeId));
+    expect(encore.status).toBe(400);
+    expect((await encore.json()).error.message).toMatch(/Rien à régler/);
+  });
+
+  it("refuse un mois qui n'est pas comptabilisé", async () => {
+    connecte();
+    const p = await (await periodesRoute.POST(post("/api/paie/periodes", { contribuableId, periode: "2026-08" }))).json();
+    const res = await reglementRoute.POST(post("", { journalId: journalBanque, dateEcriture: "2026-09-01" }), ctx(p.id));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.message).toMatch(/Validez le mois/);
+    expect((await periodeRoute.DELETE(post(""), ctx(p.id))).status).toBe(204);
   });
 });

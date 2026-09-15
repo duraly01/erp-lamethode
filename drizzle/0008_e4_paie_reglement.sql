@@ -1,0 +1,2 @@
+ALTER TABLE "paie_bulletins" ADD COLUMN "reglement_ecriture_id" integer;--> statement-breakpoint
+ALTER TABLE "paie_bulletins" ADD CONSTRAINT "paie_bulletins_reglement_ecriture_id_cpta_ecritures_id_fk" FOREIGN KEY ("reglement_ecriture_id") REFERENCES "public"."cpta_ecritures"("id") ON DELETE set null ON UPDATE no action;
