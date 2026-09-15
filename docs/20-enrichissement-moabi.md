@@ -71,12 +71,12 @@ la première brique réellement transformante**.
 | Intégration des flux & données | 🟡 Partiel (import CSV contribuables, exports) | Étendre en E2/E3 |
 | Pilotage & reporting | 🟡 Partiel (`/analytics`) | Étendre en E2 |
 | Ventes & facturation | ⚠️ **Ambigu — voir §4** | Distinguer |
-| Trésorerie & caisse | 🟡 Partiel (`reglements` sur factures cabinet) | E3 |
-| **Comptabilité générale & SYSCOHADA** | ❌ **Absent** | **E1 — priorité absolue** |
-| Immobilisations | ❌ Absent | E5 (requis pour les Notes de la DSF) |
-| Achats & fournisseurs | ❌ Absent | E3 |
-| RH & paie | 🟡 `cnps_cotisations` suit les cotisations, pas de bulletin | E4 |
-| Comptabilité analytique | ❌ Absent | E5 |
+| Trésorerie & caisse | ✅ Fait (E3 — journaux de banque et de caisse, règlements lettrés, rapprochement) | Rien |
+| **Comptabilité générale & SYSCOHADA** | ✅ Fait (E1 + E2 — écritures, balance, grand livre, états financiers, DSF, TVA, clôture) | Rien |
+| Immobilisations | ✅ Fait (E5 — fiches, plans linéaire/dégressif, dotations, cessions, tableau) | Rien |
+| Achats & fournisseurs | ✅ Fait (E3 — tiers, factures d'achat, règlements) | Rien |
+| RH & paie | ✅ Fait (E4 — salariés, bulletins, barème daté, DIPE, écriture et règlement de paie) | Rien |
+| Comptabilité analytique | ✅ Fait (E5 — axes, sections, ventilation, restitution) | Rien |
 | Budget & contrôle budgétaire | ❌ Absent | Ultérieur |
 | Stocks & inventaire | ❌ Absent | Ultérieur — peu de clients concernés |
 | Consolidation multi-entités | ❌ | **Hors périmètre** |
@@ -86,7 +86,8 @@ la première brique réellement transformante**.
 | Production / GPAO | ❌ | **Hors périmètre** — pas la clientèle du cabinet |
 | Gestion agricole | ❌ | **Hors périmètre** |
 
-Six modules sur vingt sont retenus, deux sont déjà faits, six sont écartés d'emblée.
+Six modules sur vingt sont retenus, six sont écartés d'emblée. Les phases E1 à E5 sont
+livrées (septembre 2026) ; restent le budget et les stocks, ultérieurs.
 Le périmètre passe de « ERP généraliste » à « outil de production d'un cabinet comptable » —
 c'est beaucoup plus petit, et c'est ce dont le cabinet a réellement besoin.
 
