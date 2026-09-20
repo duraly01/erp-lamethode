@@ -49,6 +49,56 @@ Trois conclusions :
 Au passage, les messages « Plesk a expiré » repérés dans la page de connexion
 étaient bien des gabarits : le panneau fonctionne normalement.
 
+## 0 bis. Ce qui est déjà fait sur le serveur — 20 septembre 2026
+
+Configuration posée directement dans le panneau, avec l'accord du cabinet :
+
+- **sous-domaine `erp.lamethode.cm` créé** (id 459), racine du document
+  `/erp.lamethode.cm/public`, racine d'application `/erp.lamethode.cm` — les
+  secrets et les sources restent ainsi hors de portée du web ;
+- **Node.js activé** sur ce sous-domaine, en **22.23.2**, mode `production`,
+  fichier de démarrage **`server.js`**.
+
+Plesk signale, à raison, que `server.js` est introuvable : les fichiers ne sont
+pas encore déposés. C'est l'étape suivante.
+
+### Ce qui bloque le dépôt des fichiers
+
+**Le gestionnaire de fichiers de ce Plesk ne s'affiche pas** — page vide, aucun
+élément, aucune erreur dans la console du navigateur, aussi bien sur
+`lamethode.cm` que sur le sous-domaine. Ce n'est pas un problème de droits :
+c'est l'interface elle-même qui ne rend rien. Trois contournements :
+
+1. **Le réessayer depuis un autre navigateur**, ou avec les extensions
+   désactivées — c'est le plus rapide à vérifier.
+2. **Par FTP**, avec les identifiants du panneau (Sites Web & Domaines → Accès
+   FTP). C'est la voie la plus sûre pour 15 Mo.
+3. **Par Git** — le tableau de bord propose « Déployer à l'aide de Git ». Il
+   faudrait d'abord pousser le dépôt sur un hébergeur Git, ce qu'il n'est pas
+   aujourd'hui.
+
+### L'état du DNS, et ce qu'il implique
+
+`lamethode.cm` est délégué à `ns3/ns4.nitrowebhost.co.uk` — pas à ce Plesk. Et
+surtout :
+
+| Nom | Résout vers | Ce qui s'y trouve |
+| --- | --- | --- |
+| `lamethode.cm` | 95.217.84.98 | le site vitrine |
+| `erp.lamethode.cm` | 95.217.84.98 | **l'ERP en production, vivant** |
+| serveur Plesk | 178.32.213.243 | le nouvel hébergement, vide |
+
+`erp.lamethode.cm` **sert l'ERP en production** : la bascule de ce nom vers
+178.32.213.243 est donc le dernier geste de la migration, pas le premier. Elle
+se fait chez le gestionnaire du DNS, une fois la nouvelle installation
+éprouvée — et l'ancien serveur reste debout un moment, comme le prescrit le
+document 19.
+
+Conséquence pratique : **le certificat Let's Encrypt ne pourra être émis
+qu'après la bascule DNS**, puisque la validation passe par le nom de domaine.
+Pour éprouver l'installation avant la bascule, le plus simple est un nom
+temporaire (`erp2.lamethode.cm`, par exemple) pointé vers 178.32.213.243.
+
 ## 1. L'archive
 
 Produite ici, avec `npm run build` préalable :
