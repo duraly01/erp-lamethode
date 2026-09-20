@@ -62,25 +62,11 @@ particulier à cette livraison.
 
 ### Voie B — hébergement cPanel actuel
 
-Contraintes rappelées dans `18-migration-production.md` : ni SSH, ni build sur
-place, exécution par tâches Cron.
-
-1. **Sauvegarder** la base et le coffre, et **vérifier** la sauvegarde (§ « Vérifier »
-   de `19-sauvegarde-et-migration.md`). Non négociable : dix migrations vont
-   s'appliquer.
-2. Sur le poste : `npm ci`, puis `npm run build`. Archiver `.next` (renommé
-   `dotnext` le temps du transfert), `drizzle/`, `src/`, `scripts/`, `server.js`,
-   `package.json`, `package-lock.json`.
-3. Déposer, extraire, renommer `dotnext` en `.next`. Lancer « Run NPM Install »
-   depuis le panneau — une seule dépendance nouvelle, `@fontsource-variable/inter`,
-   et elle n'est utilisée qu'au build : l'installation existante suffit si le
-   panneau refuse de tourner.
-4. Tâche Cron, une fois : `cd /home/lamethode/erp && npm run db:migrate:node >> migration.log 2>&1`.
-   Le journal doit se terminer par « migrations appliquées : 13 ». Chaque
-   migration est une transaction : un échec ne laisse rien à moitié, on corrige
-   et on relance.
-5. Redémarrer l'application, contrôler `/api/health`, puis `npm run check:build`
-   par Cron si le site ne répond pas.
+**Caduque depuis le 20 septembre 2026** : le cabinet a quitté cPanel pour un
+serveur Plesk (`srv2-web-ns7.newtoncorp.fr`), sans accès SSH lui non plus. La
+procédure adaptée — archive, boutons du panneau, migrateur sans WebAssembly —
+est dans `22-mise-en-production-plesk.md`, qui pose aussi la question qui
+décide de tout : ce serveur offre-t-il PostgreSQL ?
 
 ## 4. Après la livraison, à la main, dans l'application
 
