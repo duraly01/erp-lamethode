@@ -9,42 +9,45 @@ dépose une archive, on clique dans le panneau.** Le `server.js` écrit pour
 Passenger du temps de cPanel resservira tel quel — Plesk fait tourner les
 applications Node.js avec le même Passenger.
 
-## 0. Le point bloquant : PostgreSQL
+Bonne nouvelle par rapport à cPanel : ce serveur a PostgreSQL 14, Node 22, les
+tâches planifiées et un onglet d'exécution de commandes. Tout ce qui manquait
+là-bas est ici.
 
-L'ERP est écrit pour PostgreSQL et ne tournera sur rien d'autre — les
-énumérations, `jsonb`, `numeric(14,2)`, les index partiels, le schéma
-`drizzle` : tout en dépend. Une migration vers MySQL n'est pas un réglage,
-c'est une réécriture.
+## 0. Ce que le serveur offre — constaté le 20 septembre 2026
 
-**Le `docker-compose.prod.yml` du dépôt ne peut pas fournir la base ici.**
-L'extension Docker de Plesk n'est offerte qu'à l'administrateur du serveur,
-ne lance que des images déjà publiées sur un registre, et ne construit pas
-depuis un `Dockerfile`. Avec un accès « panneau seulement », cette voie est
-fermée.
+Vérifié directement dans le panneau, session ouverte par le cabinet. Rien n'a
+été créé ni modifié : lecture seule.
 
-Restent trois possibilités, par ordre de préférence :
+| | |
+| --- | --- |
+| Abonnement | `lamethode.cm`, actif, 0,6 Mo utilisés — hébergement neuf |
+| IP | 178.32.213.243 · utilisateur système `lamethode.cm_cvls4nga5b` |
+| **PostgreSQL** | **oui — `localhost:5432`, v14.24** (et MariaDB 10.6.23 à côté) |
+| **Node.js** | **oui — extension présente**, versions proposées **22.23.2** et 23.11.1 |
+| Racine du document | `/httpdocs` · mode d'application `production` |
+| Variables d'environnement | réglables depuis le panneau Node.js |
+| Tâches planifiées | oui |
+| Git, Composer, PHP 8.4.25 | oui |
+| SSL/TLS | **« Domaine non protégé »** — aucun certificat pour l'instant |
 
-| | Ce que ça suppose | Remarque |
-| --- | --- | --- |
-| **PostgreSQL du serveur** | que Newton Corp l'ait installé, ou accepte de l'installer | Le plus simple. Plesk gère PostgreSQL nativement dès qu'il est présent sur la machine. |
-| **PostgreSQL managé ailleurs** | un compte chez un hébergeur de bases (Neon, Supabase, Scaleway…) | Fonctionne sans rien demander à Newton Corp. La base sort du serveur : à vérifier côté confidentialité des données clients. |
-| **VPS avec SSH** | changer d'offre | Redonne accès à `docker-compose.prod.yml`, c'est-à-dire à la voie A du document 13. |
+Trois conclusions :
 
-**À vérifier dans le panneau avant toute chose** (cinq minutes) :
+1. **Le serveur convient.** PostgreSQL 14.24 est très au-dessus du 9.6 de
+   l'ancien hébergeur — dont la migration 0010 a été retaillée pour tenir. La
+   question qui bloquait tout est tranchée, et le docker-compose du dépôt
+   devient inutile : la base est fournie par l'hébergeur.
+2. **Prendre Node 22.23.2, pas 23.11.1.** La 22 est la version en support long
+   terme, celle du `Dockerfile` du dépôt. La 23 n'est plus maintenue.
+3. **Ne pas activer Node.js sur `lamethode.cm` lui-même.** Activer Node.js à la
+   racine d'un domaine fait passer tout le domaine derrière Passenger : le site
+   vitrine, s'il est servi depuis ce serveur, disparaîtrait. L'ERP va sur un
+   **sous-domaine dédié**, `erp.lamethode.cm`, avec sa propre racine.
+   À confirmer au passage : le site public `lamethode.cm` est-il déjà servi par
+   ce serveur, ou le DNS pointe-t-il encore vers l'ancien ? Les 0,6 Mo
+   d'occupation disque laissent penser que `httpdocs` est encore vide.
 
-1. **Bases de données → Ajouter une base de données** : la liste « Serveur de
-   base de données » propose-t-elle un serveur **PostgreSQL**, ou seulement
-   MySQL/MariaDB ?
-2. **Sites Web & Domaines → [le domaine]** : y a-t-il une vignette **Node.js** ?
-   Si non, l'extension n'est pas installée pour ce compte — c'est une demande à
-   faire à l'hébergeur, elle est gratuite.
-3. Quelle **version de Node.js** le panneau propose-t-il ? Il faut **20 ou
-   plus** (Next.js 16). Si le maximum est 18, l'application ne démarrera pas.
-4. Y a-t-il **Tâches planifiées** dans le menu ? C'est ce qui fera tourner les
-   automatisations quotidiennes (retards, pénalités, rappels).
-
-Tant que le point 1 n'a pas de réponse, le reste de ce document ne sert à rien :
-**c'est la seule question qui décide si ce serveur convient.**
+Au passage, les messages « Plesk a expiré » repérés dans la page de connexion
+étaient bien des gabarits : le panneau fonctionne normalement.
 
 ## 1. L'archive
 
@@ -90,25 +93,33 @@ main, le troisième s'installe depuis le panneau.
    - `STORAGE_LOCAL_PATH` — chemin absolu du coffre documentaire.
    Ce fichier porte tous les secrets : il ne doit jamais entrer dans le dépôt
    ni transiter par messagerie.
-3. **Bases de données** → créer la base PostgreSQL et son utilisateur, puis
-   reporter l'URL dans `DATABASE_URL`.
-4. **Sites Web & Domaines → Node.js** :
-   - *Version de Node.js* : 20 ou plus ;
-   - *Racine de l'application* : le dossier où l'archive a été extraite ;
-   - *Fichier de démarrage* : `server.js` ;
-   - *Mode* : `production` ;
-   - puis **NPM install**. C'est la seule étape longue (quelques minutes).
+3. **Bases de données → Ajouter une base de données** : choisir le serveur
+   **`localhost:5432 (PostgreSQL v14.24)`** — surtout pas le MariaDB proposé
+   par défaut —, créer la base et son utilisateur, puis composer
+   `DATABASE_URL=postgresql://<user>:<motdepasse>@localhost:5432/<base>`.
+4. **Sites Web & Domaines → `erp.lamethode.cm` → Node.js** :
+   - *Version de Node.js* : **22.23.2** ;
+   - *Root d'application* : le dossier où l'archive a été extraite ;
+   - *Fichier de démarrage* : `server.js` (le panneau propose `app.js` par
+     défaut) ;
+   - *Mode d'application* : `production` ;
+   - **Activer Node.js**, puis **NPM install**. C'est la seule étape longue
+     (quelques minutes).
+
+   Les secrets peuvent aussi être posés ici, dans *Variables d'environnement
+   personnalisées*, plutôt que dans un fichier `.env` — au choix, mais pas les
+   deux.
 
 ## 3. Migrer et démarrer
 
-1. Toujours dans le panneau Node.js, bouton **Exécuter un script** →
-   `db:migrate:node`.
+1. Toujours dans le panneau Node.js, onglet **Exécuter les commandes Node.js**
+   (disponible une fois Node.js activé) → `npm run db:migrate:node`.
    La sortie doit se terminer par **« migrations appliquées : 13 »**. Chaque
    migration est une transaction : un échec ne laisse rien à moitié, on corrige
    et on relance.
 2. **Redémarrer l'application**.
 3. Ouvrir `https://<domaine>/api/health` : doit répondre `200`.
-4. Si le site ne répond pas : **Exécuter un script** → `check:build`, qui dit ce
+4. Si le site ne répond pas : même onglet → `npm run check:build`, qui dit ce
    qui manque (build, dépendances, variables) sans rien écrire.
 
 ## 4. Les données
@@ -140,11 +151,8 @@ Comme au document 21, et toujours à la main dans l'application :
 
 ## 6. Ce qui reste à savoir sur ce serveur
 
-- La page de connexion Plesk sert des messages de licence en français
-  (« Plesk a expiré », « licence non prévue pour… »). Ce sont des gabarits
-  présents sur toutes les pages de connexion Plesk : ils ne disent rien de
-  l'état réel de cette licence. À confirmer une fois connecté.
 - **Aucun scan de sécurité dynamique** n'a été fait (outillage absent du poste).
-- Le certificat TLS du panneau est auto-signé sur le port 8443 ; celui du
-  domaine public doit être un vrai certificat (Let's Encrypt est intégré à
-  Plesk).
+- **Le domaine est marqué « non protégé » : il n'a pas encore de certificat.**
+  À émettre avant la mise en service — Let's Encrypt est intégré à Plesk, c'est
+  l'affaire de deux clics. Ce n'est pas cosmétique : `AUTH_URL` doit être en
+  `https://`, et les cookies de session d'Auth.js sont refusés en clair.
