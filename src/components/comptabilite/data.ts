@@ -955,3 +955,41 @@ export function useControleBudget(id?: number, jusquAu?: string) {
     queryFn: () => apiGet<ControleBudget>(`/api/comptabilite/budgets/${id}/controle${qs({ jusquAu })}`),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Pilotage — tableau de bord de gestion mensuel (A1)
+//
+// Montants en centimes entiers, comme la balance.
+// ---------------------------------------------------------------------------
+
+export type MoisPilotage = {
+  mois: string;
+  ventesMarchandises: number;
+  chiffreAffaires: number;
+  margeCommerciale: number;
+  tauxMarge: number | null;
+  valeurAjoutee: number;
+  chargesPersonnel: number;
+  ebe: number;
+  resultatExploitation: number;
+  resultatNet: number;
+  budgetChiffreAffaires: number | null;
+  budgetResultat: number | null;
+};
+
+export type Pilotage = {
+  exercice: { id: number; libelle: string; dateDebut: string; dateFin: string };
+  jusquAu: string;
+  section: { id: number; axeId: number; code: string; libelle: string } | null;
+  budget: { id: number; libelle: string; statut: string; axeId: number | null } | null;
+  mois: MoisPilotage[];
+  cumul: Omit<MoisPilotage, "mois">;
+};
+
+export function usePilotage(exerciceId?: number, filtre?: { jusquAu?: string; sectionId?: number; budgetId?: number }) {
+  return useQuery({
+    queryKey: ["cpta-pilotage", exerciceId, filtre?.jusquAu, filtre?.sectionId, filtre?.budgetId],
+    enabled: !!exerciceId,
+    queryFn: () => apiGet<Pilotage>(`/api/comptabilite/pilotage${qs({ exerciceId, ...filtre })}`),
+  });
+}

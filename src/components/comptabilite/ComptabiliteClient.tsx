@@ -36,6 +36,7 @@ import { RapprochementPanel } from "./RapprochementPanel";
 import { ImmobilisationsPanel } from "./ImmobilisationsPanel";
 import { AnalytiquePanel } from "./AnalytiquePanel";
 import { BudgetPanel } from "./BudgetPanel";
+import { PilotagePanel } from "./PilotagePanel";
 import { TvaPanel } from "./TvaPanel";
 import { DsfPanel } from "./DsfPanel";
 import { ClotureDialog } from "./ClotureDialog";
@@ -56,6 +57,7 @@ type Onglet =
   | "immobilisations"
   | "analytique"
   | "budget"
+  | "pilotage"
   | "balance"
   | "grand-livre"
   | "liasse"
@@ -70,6 +72,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "immobilisations", libelle: "Immobilisations" },
   { cle: "analytique", libelle: "Analytique" },
   { cle: "budget", libelle: "Budget" },
+  { cle: "pilotage", libelle: "Pilotage" },
   { cle: "balance", libelle: "Balance" },
   { cle: "grand-livre", libelle: "Grand livre" },
   { cle: "liasse", libelle: "Liasse" },
@@ -310,6 +313,7 @@ export function ComptabiliteClient() {
           )}
           {onglet === "analytique" && <AnalytiquePanel exercice={exercice} />}
           {onglet === "budget" && <BudgetPanel exercice={exercice} comptes={comptes ?? []} />}
+          {onglet === "pilotage" && <PilotagePanel key={exercice.id} exercice={exercice} />}
           {onglet === "balance" && <BalancePanel exercice={exercice} />}
           {onglet === "grand-livre" && (
             <GrandLivrePanel exercice={exercice} comptes={comptes ?? []} />

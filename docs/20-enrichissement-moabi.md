@@ -78,7 +78,7 @@ la première brique réellement transformante**.
 | RH & paie | ✅ Fait (E4 — salariés, bulletins, barème daté, DIPE, écriture et règlement de paie) | Rien |
 | Comptabilité analytique | ✅ Fait (E5 — axes, sections, ventilation, restitution) | Rien |
 | Budget & contrôle budgétaire | ✅ Fait (E6 — budgets par compte et par section, mensualisation, contrôle à date) | Rien |
-| Stocks & inventaire | ❌ Absent | Ultérieur — peu de clients concernés |
+| Stocks & inventaire | ❌ Absent | **Prioritaire** depuis le retour terrain du 17/09/2026 — cadré dans [`23-retour-terrain-gestion-commerciale-stocks.md`](23-retour-terrain-gestion-commerciale-stocks.md) |
 | Consolidation multi-entités | ❌ | **Hors périmètre** |
 | Passerelle IFRS | ❌ | **Hors périmètre** |
 | Courrier & transmissions | ❌ | **Hors périmètre** — `documents` suffit |
@@ -87,7 +87,7 @@ la première brique réellement transformante**.
 | Gestion agricole | ❌ | **Hors périmètre** |
 
 Sept modules sur vingt sont retenus, six sont écartés d'emblée. Les phases E1 à E6 sont
-livrées (septembre 2026) ; restent les stocks, ultérieurs.
+livrées (septembre 2026) ; restent les stocks, désormais cadrés dans le document 23.
 Le périmètre passe de « ERP généraliste » à « outil de production d'un cabinet comptable » —
 c'est beaucoup plus petit, et c'est ce dont le cabinet a réellement besoin.
 

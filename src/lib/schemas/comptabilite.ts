@@ -382,3 +382,16 @@ export const budgetInitialisationSchema = z.object({
   /** Coefficient en pourcentage : 100 reprend tel quel, 105 ajoute 5 %. */
   coefficientPct: z.coerce.number().min(0).max(1000).default(100),
 });
+
+// ---------------------------------------------------------------------------
+// Pilotage — tableau de bord de gestion mensuel
+// ---------------------------------------------------------------------------
+
+export const pilotageQuerySchema = z.object({
+  exerciceId: idPositif,
+  jusquAu: dateString.optional(),
+  /** Restreint au réalisé ventilé sur cette section analytique. */
+  sectionId: idPositif.optional(),
+  /** Budget à confronter ; à défaut, le dernier budget validé de l'exercice. */
+  budgetId: idPositif.optional(),
+});
