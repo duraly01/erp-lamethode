@@ -42,6 +42,41 @@ const urlPropre = url.replace(/[?&]sslmode=[^&]*/g, (m) =>
   m.startsWith("?") ? "?" : "",
 );
 
+// ---------------------------------------------------------------------------
+// Garde-fou : ce script préfère DATABASE_URL_MIGRATION à DATABASE_URL, et le
+// `.env` de développement y met l'adresse du serveur. Lancé sans réfléchir
+// depuis un poste de travail, il vise donc la production — alors que tout le
+// reste de l'outillage (`npm run dev`, les tests) reste sur la base locale.
+//
+// Viser une base distante doit être un acte délibéré, jamais un défaut. Même
+// principe que `tests/integration-setup.ts`, appliqué à l'outil qui écrit.
+// ---------------------------------------------------------------------------
+const HOTES_LOCAUX = ["localhost", "127.0.0.1", "::1", "db"];
+let hote = "";
+try {
+  hote = new URL(urlPropre).hostname;
+} catch {
+  hote = "";
+}
+const estLocal = HOTES_LOCAUX.includes(hote);
+const confirme =
+  process.argv.includes("--distant") ||
+  process.env.MIGRATION_HOTE_DISTANT === hote;
+
+if (!estLocal && !confirme) {
+  console.error(`\n⛔ Cible distante refusée : « ${hote} »`);
+  console.error(`   ${masquee}`);
+  console.error(
+    "\n   Ce n'est pas une base locale. Une migration y est irréversible.\n" +
+      "   Si c'est bien l'intention, confirmez la cible explicitement :\n" +
+      `\n     node scripts/migrate.mjs --distant\n` +
+      `     MIGRATION_HOTE_DISTANT=${hote} npm run db:migrate:node\n` +
+      "\n   Pour migrer la base locale, surchargez la variable :\n" +
+      '     DATABASE_URL_MIGRATION="postgresql://postgres:postgres@127.0.0.1:5432/app_db" node scripts/migrate.mjs\n',
+  );
+  process.exit(1);
+}
+
 const pool = new pg.Pool({
   connectionString: urlPropre,
   ssl: veutSsl ? { rejectUnauthorized: false } : undefined,
@@ -70,6 +105,34 @@ function lireMigrations() {
   });
 }
 
+/**
+ * Reprend le suivi laissé par le migrateur standard dans `drizzle`.
+ *
+ * Une base déjà migrée par drizzle-orm a son historique dans
+ * `drizzle.__drizzle_migrations`. Sans cette reprise, le nouveau suivi part
+ * vide et le script conclut qu'aucune migration n'a jamais été appliquée :
+ * il rejoue alors la totalité du dossier sur une base qui a déjà toutes ses
+ * tables. La transaction annule les dégâts, mais l'échec est incompréhensible
+ * — et il tombe en pleine mise en production.
+ *
+ * L'absence du schéma `drizzle` est le cas normal sur l'hébergement contraint,
+ * et un refus de lecture se traite comme une absence : dans les deux cas il
+ * n'y a rien à reprendre.
+ */
+async function reprendreSuiviHerite() {
+  const heritees = await pool
+    .query(`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`)
+    .then((r) => r.rows[0].n)
+    .catch(() => 0);
+  if (heritees === 0) return 0;
+
+  await pool.query(
+    `INSERT INTO public.__drizzle_migrations (hash, created_at)
+       SELECT hash, created_at FROM drizzle.__drizzle_migrations`,
+  );
+  return heritees;
+}
+
 // ---------------------------------------------------------------------------
 // Application des migrations (logique de pg-core/dialect.js, sans CREATE SCHEMA)
 // ---------------------------------------------------------------------------
@@ -82,6 +145,18 @@ async function appliquerMigrations() {
       created_at BIGINT
     )
   `);
+
+  // Uniquement sur un suivi vide : une fois repris, il fait autorité, et
+  // réimporter écraserait l'avancement acquis depuis.
+  const { rows: compte } = await pool.query(
+    `SELECT count(*)::int AS n FROM public.__drizzle_migrations`,
+  );
+  if (compte[0].n === 0) {
+    const reprises = await reprendreSuiviHerite();
+    if (reprises > 0) {
+      console.log(`   ↻ suivi repris depuis drizzle.__drizzle_migrations (${reprises} migration(s))`);
+    }
+  }
 
   const { rows: dbMigrations } = await pool.query(
     `SELECT id, hash, created_at FROM public.__drizzle_migrations ORDER BY created_at DESC LIMIT 1`,
@@ -169,6 +244,7 @@ async function etat(titre) {
 // ---------------------------------------------------------------------------
 async function main() {
   console.log(`🔌 ${masquee}`);
+  console.log(`🎯 cible : ${hote} ${estLocal ? "(locale)" : "⚠️  DISTANTE — confirmée"}`);
   console.log(`📁 migrations : ${dossierMigrations}`);
 
   await etat("AVANT");
