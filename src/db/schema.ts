@@ -1895,3 +1895,255 @@ export const paieBulletinsRelations = relations(paieBulletins, ({ one, many }) =
 export const paieBulletinLignesRelations = relations(paieBulletinLignes, ({ one }) => ({
   bulletin: one(paieBulletins, { fields: [paieBulletinLignes.bulletinId], references: [paieBulletins.id] }),
 }));
+
+// ---------------------------------------------------------------------------
+// GESTION COMMERCIALE & STOCKS — S1 : référentiel (docs/23)
+//
+// Préfixe `gc_`. Comme pour `cpta_`, tout appartient au contribuable et jamais
+// au cabinet : ce sont les articles et les dépôts du client dont on tient les
+// livres.
+//
+// S1 ne pose que le référentiel — ce qu'on désigne. Les mouvements, les
+// documents et l'inventaire viennent en S2 et S4 : un référentiel sans
+// mouvement sert déjà (harmonisation des références, feuilles de comptage),
+// un mouvement sans référentiel ne sert à rien.
+// ---------------------------------------------------------------------------
+
+export const gcTypeDepotEnum = pgEnum("gc_type_depot", ["ENTREPOT", "BOUTIQUE", "RESTAURANT", "TRANSIT"]);
+export const gcPolitiqueNegatifEnum = pgEnum("gc_politique_negatif", ["REFUSE", "TOLERE"]);
+export const gcTypeCodeArticleEnum = pgEnum("gc_type_code_article", ["EAN", "FOURNISSEUR", "INTERNE_ANCIEN"]);
+
+/**
+ * Un site qui détient du stock : entrepôt, boutique, restaurant.
+ *
+ * Le responsable est nommé sur le dépôt, et c'est tout l'objet de la table :
+ * un stock « dans la machine » n'est le stock de personne. Le dépôt `TRANSIT`
+ * est technique — il portera la marchandise partie d'un site et pas encore
+ * arrivée à l'autre (S2) — et n'a donc pas de responsable.
+ */
+export const gcDepots = pgTable(
+  "gc_depots",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    type: gcTypeDepotEnum("type").notNull(),
+    responsableUserId: integer("responsable_user_id").references(() => users.id, { onDelete: "set null" }),
+    /** Section analytique du site : le résultat par dépôt tombe alors sans saisie supplémentaire. */
+    sectionId: integer("section_id").references(() => cptaSectionsAnalytiques.id, { onDelete: "set null" }),
+    /** Ce que le dépôt fera d'une sortie qui le rendrait négatif (appliqué en S2). */
+    politiqueNegatif: gcPolitiqueNegatifEnum("politique_negatif").default("REFUSE").notNull(),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("gc_depots_ctb_code_unique").on(t.contribuableId, t.code),
+    index("gc_depots_ctb_idx").on(t.contribuableId, t.actif),
+  ],
+);
+
+/**
+ * Famille d'articles, arborescente. Elle porte les comptes par défaut : un
+ * article qui n'en fixe aucun prend ceux de sa famille, ce qui évite de
+ * répéter la même imputation sur des centaines de références.
+ */
+export const gcFamilles = pgTable(
+  "gc_familles",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    parentId: integer("parent_id").references((): AnyPgColumn => gcFamilles.id, { onDelete: "restrict" }),
+    compteAchatId: integer("compte_achat_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteVenteId: integer("compte_vente_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteStockId: integer("compte_stock_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteVariationId: integer("compte_variation_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    taxeId: integer("taxe_id").references(() => cptaTaxes.id, { onDelete: "set null" }),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("gc_familles_ctb_code_unique").on(t.contribuableId, t.code)],
+);
+
+/**
+ * L'article — la brique que tout le reste désignera.
+ *
+ * Son `code` est interne et attribué par l'ERP : c'est le référentiel unique
+ * qui manquait. Les codes du fournisseur et les codes-barres existent à côté
+ * (`gc_article_codes`) et peuvent être plusieurs ; aucun n'est l'identité de
+ * l'article, parce qu'aucun n'est garanti présent.
+ *
+ * Les comptes et la taxe sont facultatifs : nuls, ils s'héritent de la
+ * famille. Un compte porté ici l'emporte, pour l'exception qu'aucune famille
+ * ne veut décrire.
+ */
+export const gcArticles = pgTable(
+  "gc_articles",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 40 }).notNull(),
+    libelle: text("libelle").notNull(),
+    familleId: integer("famille_id").references(() => gcFamilles.id, { onDelete: "restrict" }),
+    /** Unité de suivi : U, KG, L, CARTON… Les quantités s'entendent dans cette unité. */
+    unite: varchar("unite", { length: 10 }).default("U").notNull(),
+    /** Ce qui distingue deux articles proches : le 500 g et le 1 kg du même biscuit. */
+    variante: varchar("variante", { length: 60 }),
+    /** Le stock de cet article se suivra lot par lot, avec DLC (S5). */
+    suiviLot: boolean("suivi_lot").default(false).notNull(),
+    /** Durée de vie minimale exigée à la réception, en jours (S5). */
+    dureeVieMinJours: integer("duree_vie_min_jours"),
+    compteAchatId: integer("compte_achat_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteVenteId: integer("compte_vente_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteStockId: integer("compte_stock_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    compteVariationId: integer("compte_variation_id").references(() => cptaComptes.id, { onDelete: "set null" }),
+    taxeId: integer("taxe_id").references(() => cptaTaxes.id, { onDelete: "set null" }),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("gc_articles_ctb_code_unique").on(t.contribuableId, t.code),
+    index("gc_articles_ctb_famille_idx").on(t.contribuableId, t.familleId),
+    index("gc_articles_ctb_libelle_idx").on(t.contribuableId, t.libelle),
+  ],
+);
+
+/**
+ * Les autres façons de nommer un article : code-barres, référence du
+ * fournisseur, ancien code repris d'un fichier.
+ *
+ * `contribuable_id` est recopié depuis l'article pour que l'unicité porte sur
+ * tout le catalogue : un code-barres scanné en caisse doit désigner un article
+ * et un seul, ce qu'une unicité par article ne garantirait pas.
+ */
+export const gcArticleCodes = pgTable(
+  "gc_article_codes",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    articleId: integer("article_id")
+      .references(() => gcArticles.id, { onDelete: "cascade" })
+      .notNull(),
+    type: gcTypeCodeArticleEnum("type").notNull(),
+    code: varchar("code", { length: 80 }).notNull(),
+    /** Le fournisseur dont c'est la référence, pour un code de type FOURNISSEUR. */
+    tiersId: integer("tiers_id").references(() => cptaTiers.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("gc_article_codes_ctb_type_code_unique").on(t.contribuableId, t.type, t.code),
+    index("gc_article_codes_article_idx").on(t.articleId),
+  ],
+);
+
+/**
+ * Une grille tarifaire : PUBLIC, RESTAURANT, GROS…
+ *
+ * Le prix cesse d'être une propriété de l'article pour devenir le croisement
+ * d'un tarif, d'un article et d'une date. C'est ce qui permettra de servir le
+ * restaurant à son tarif sans toucher au prix de la boutique.
+ */
+export const gcTarifs = pgTable(
+  "gc_tarifs",
+  {
+    id: serial("id").primaryKey(),
+    contribuableId: integer("contribuable_id")
+      .references(() => contribuables.id, { onDelete: "restrict" })
+      .notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    libelle: text("libelle").notNull(),
+    /** Tarif appliqué d'office aux dépôts de ce type ; nul, il se choisit à la vente. */
+    typeDepotDefaut: gcTypeDepotEnum("type_depot_defaut"),
+    actif: boolean("actif").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("gc_tarifs_ctb_code_unique").on(t.contribuableId, t.code)],
+);
+
+/**
+ * Le prix d'un article dans un tarif, sur une période.
+ *
+ * `valide_au` nul signifie « jusqu'à nouvel ordre ». Changer un prix n'écrase
+ * rien : on clôt la ligne courante et on en ouvre une autre, de sorte qu'une
+ * vente de mars se relise au prix de mars.
+ *
+ * L'unicité porte sur la date de début. Le non-chevauchement, lui, est tenu
+ * par le service : l'exprimer en base demanderait une contrainte EXCLUDE et
+ * l'extension `btree_gist`, dont la création exige un privilège que
+ * l'hébergement mutualisé ne donne pas — la même limite que celle qui a imposé
+ * le migrateur maison.
+ */
+export const gcTarifPrix = pgTable(
+  "gc_tarif_prix",
+  {
+    id: serial("id").primaryKey(),
+    tarifId: integer("tarif_id")
+      .references(() => gcTarifs.id, { onDelete: "cascade" })
+      .notNull(),
+    articleId: integer("article_id")
+      .references(() => gcArticles.id, { onDelete: "cascade" })
+      .notNull(),
+    valideDu: date("valide_du").notNull(),
+    valideAu: date("valide_au"),
+    prixHt: numeric("prix_ht", { precision: 14, scale: 2 }).notNull(),
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("gc_tarif_prix_tarif_article_du_unique").on(t.tarifId, t.articleId, t.valideDu),
+    index("gc_tarif_prix_article_idx").on(t.articleId, t.valideDu),
+    check("gc_tarif_prix_periode_ordonnee", sql`${t.valideAu} IS NULL OR ${t.valideAu} >= ${t.valideDu}`),
+    check("gc_tarif_prix_positif", sql`${t.prixHt} >= 0`),
+  ],
+);
+
+// --- Relations -------------------------------------------------------------
+
+export const gcDepotsRelations = relations(gcDepots, ({ one }) => ({
+  contribuable: one(contribuables, { fields: [gcDepots.contribuableId], references: [contribuables.id] }),
+  responsable: one(users, { fields: [gcDepots.responsableUserId], references: [users.id] }),
+  section: one(cptaSectionsAnalytiques, { fields: [gcDepots.sectionId], references: [cptaSectionsAnalytiques.id] }),
+}));
+
+export const gcFamillesRelations = relations(gcFamilles, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [gcFamilles.contribuableId], references: [contribuables.id] }),
+  parent: one(gcFamilles, { fields: [gcFamilles.parentId], references: [gcFamilles.id], relationName: "familleParente" }),
+  enfants: many(gcFamilles, { relationName: "familleParente" }),
+  articles: many(gcArticles),
+}));
+
+export const gcArticlesRelations = relations(gcArticles, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [gcArticles.contribuableId], references: [contribuables.id] }),
+  famille: one(gcFamilles, { fields: [gcArticles.familleId], references: [gcFamilles.id] }),
+  codes: many(gcArticleCodes),
+  prix: many(gcTarifPrix),
+}));
+
+export const gcArticleCodesRelations = relations(gcArticleCodes, ({ one }) => ({
+  article: one(gcArticles, { fields: [gcArticleCodes.articleId], references: [gcArticles.id] }),
+  tiers: one(cptaTiers, { fields: [gcArticleCodes.tiersId], references: [cptaTiers.id] }),
+}));
+
+export const gcTarifsRelations = relations(gcTarifs, ({ one, many }) => ({
+  contribuable: one(contribuables, { fields: [gcTarifs.contribuableId], references: [contribuables.id] }),
+  prix: many(gcTarifPrix),
+}));
+
+export const gcTarifPrixRelations = relations(gcTarifPrix, ({ one }) => ({
+  tarif: one(gcTarifs, { fields: [gcTarifPrix.tarifId], references: [gcTarifs.id] }),
+  article: one(gcArticles, { fields: [gcTarifPrix.articleId], references: [gcArticles.id] }),
+}));

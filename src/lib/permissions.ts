@@ -75,6 +75,31 @@ export const RESSOURCES: {
       "Supprimer : une fiche sans bulletin, un mois en brouillon.",
   },
   {
+    cle: "depots",
+    label: "Dépôts",
+    description:
+      "Sites de stockage des contribuables : entrepôts, boutiques, restaurants. " +
+      "Consulter : la liste et les responsables. Créer et Modifier : ouvrir un site, " +
+      "en nommer le responsable, le rattacher à une section analytique. " +
+      "Supprimer : désactiver un site sans mouvement.",
+  },
+  {
+    cle: "articles",
+    label: "Articles",
+    description:
+      "Référentiel des articles du contribuable : codes internes, codes-barres, " +
+      "références fournisseur, familles. Consulter : le catalogue. Créer : un article, " +
+      "un import. Modifier : la fiche et ses codes. Supprimer : désactiver un article.",
+  },
+  {
+    cle: "tarifs",
+    label: "Tarifs",
+    description:
+      "Grilles tarifaires et prix datés. Consulter : les prix en vigueur et leur historique. " +
+      "Créer : une grille. Modifier : ouvrir un nouveau prix, ce qui clôt le précédent. " +
+      "Supprimer : une grille sans prix.",
+  },
+  {
     cle: "analytics",
     label: "Analytics",
     description: "Tableaux de bord et statistiques",
