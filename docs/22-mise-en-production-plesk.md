@@ -196,6 +196,59 @@ Sur une base neuve, deux chemins s'excluent :
   des données d'exemple. À ne lancer que sur une base vide et jamais sur une
   base reprise : le seed purge.
 
+### 4 bis. La reprise, telle qu'elle a été répétée le 28 septembre 2026
+
+Voie retenue : reprise de la sauvegarde complète du compte cPanel du
+3 septembre (`backup-9.3.2026_11-15-10_lamethode.tar`, 1,7 Go), l'écart de
+25 jours étant assumé par le cabinet.
+
+**Ce que portait réellement la production.** Quatre migrations sur quatorze —
+`0000` à `0003`. Autrement dit **E1 à E6 n'y ont jamais été déployés** : ni
+comptabilité, ni paie, ni immobilisations, ni analytique, ni budget. Cette mise
+en production n'est pas un déménagement, c'est la première livraison de l'ERP
+comptable.
+
+| | |
+| --- | --- |
+| contribuables | 64 (3 en IGS, 61 au réel) |
+| utilisateurs · rôles | 6 · 4 |
+| déclarations · factures · lignes | 6 · 3 · 10 |
+| journal d'audit · paramètres | 113 · 10 |
+| coffre documentaire | **vide** — table `documents` à zéro, aucun fichier dans la sauvegarde |
+
+**Le dump n'est pas directement importable.** cPanel le range en
+`psql/lamethode_erp.tar`, au format répertoire `pg_dump` (`toc.dat` plus des
+fichiers numérotés), et il porte quatre propriétaires — `lamethode`,
+`lamethode_erp`, `lamethode_erpuser`, `postgres` — dont aucun n'existe sur le
+Plesk. Conversion :
+
+```bash
+tar -xf backup-*.tar 'backup-*/psql/lamethode_erp.tar'
+mkdir dump && tar -xf backup-*/psql/lamethode_erp.tar -C dump
+pg_restore --no-owner --no-privileges --format=directory --file=lamethode_erp.sql dump
+grep -vE '^\\(un)?restrict ' lamethode_erp.sql > lamethode_erp-pour-plesk.sql
+```
+
+Le dernier filtre retire deux métacommandes `\restrict` posées par les
+`pg_restore` récents : psql 14 ne les connaît pas. Résultat : 120 Ko de SQL
+simple, sans `OWNER TO`.
+
+**Séquence vérifiée sur base jetable.** Restauration puis migration :
+
+```
+↻ suivi repris depuis drizzle.__drizzle_migrations (4 migration(s))
+▸ 0004_e1_comptabilite_generale … ▸ 0013_s1_gc_referentiel
+✅ 10 migration(s) appliquée(s)
+   tables : 14 → 46 · contribuables : 64, intacts
+```
+
+La reprise du suivi hérité est ce qui rend l'opération possible : sans elle, le
+migrateur croirait la base vierge et rejouerait les quatorze migrations sur une
+base pleine.
+
+Une erreur bénigne apparaît à la restauration — `schema "public" already
+exists` : le dump recrée un schéma qui existe toujours. Sans conséquence.
+
 ## 5. Après le démarrage
 
 Comme au document 21, et toujours à la main dans l'application :
