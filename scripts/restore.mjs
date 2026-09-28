@@ -135,14 +135,21 @@ async function main() {
       .then((r) => r.rows[0].n)
       .catch(() => defaut);
 
+  // Le suivi des migrations vit dans `public` quand l'hébergeur refuse la
+  // création d'un schéma, dans `drizzle` sinon. Les deux sont regardés : en
+  // annoncer zéro alors qu'il existe ferait craindre que le migrateur rejoue
+  // tout sur une base pleine.
+  const suivi = await compte(
+    "SELECT count(*)::int AS n FROM public.__drizzle_migrations",
+    await compte("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations", 0),
+  );
+
   console.log("── CONTRÔLE ───────────────────────────────────────");
   console.log(`   contribuables         : ${await compte("SELECT count(*)::int AS n FROM public.contribuables")}`);
   console.log(`   utilisateurs          : ${await compte("SELECT count(*)::int AS n FROM public.users")}`);
   console.log(`   déclarations          : ${await compte("SELECT count(*)::int AS n FROM public.declarations")}`);
   console.log(`   factures              : ${await compte("SELECT count(*)::int AS n FROM public.factures")}`);
-  console.log(
-    `   suivi des migrations  : ${await compte("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations", 0)}`,
-  );
+  console.log(`   suivi des migrations  : ${suivi}`);
   console.log(
     `   tables dans public    : ${await compte("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public'")}`,
   );

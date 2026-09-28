@@ -249,6 +249,34 @@ base pleine.
 Une erreur bénigne apparaît à la restauration — `schema "public" already
 exists` : le dump recrée un schéma qui existe toujours. Sans conséquence.
 
+**Le suivi des migrations doit être déplacé dans `public`.** Constaté au
+premier essai réel sur le serveur : l'utilisateur de la base n'en est pas le
+propriétaire et n'a pas le privilège `CREATE` dessus. Le `CREATE SCHEMA
+drizzle;` du dump échoue donc sur `permission denied for database`
+(SQL 42501), et la transaction annule toute la restauration. Il faut réécrire
+le dump avant de le déposer :
+
+```bash
+sed -e '/^CREATE SCHEMA drizzle;$/d' \
+    -e 's/drizzle\.__drizzle_migrations/public.__drizzle_migrations/g' \
+    dump.sql > dump-pour-plesk.sql
+```
+
+Le migrateur s'en accommode sans rien changer : il cherche
+`public.__drizzle_migrations` en premier et y trouve directement les quatre
+migrations déjà appliquées. C'est la même limite de privilège qui a imposé le
+migrateur maison — elle se paie une deuxième fois ici.
+
+**Le panneau n'exécute que des gestionnaires de paquets.** Le sélecteur de
+« Exécuter les commandes Node.js » propose `npm`, `yarn`, `pnpm`, jamais
+`node`. Pour lancer un script directement :
+
+```
+exec -- node scripts/restore.mjs dump-pour-plesk.sql
+```
+
+soit `npm exec -- node …`.
+
 ## 5. Après le démarrage
 
 Comme au document 21, et toujours à la main dans l'application :
