@@ -115,7 +115,7 @@ Ce qu'elle contient, et pourquoi :
 | | |
 | --- | --- |
 | `.next/` | l'application compilée — c'est ce qui évite de compiler sur le serveur |
-| `drizzle/` | les 13 migrations et leur journal |
+| `drizzle/` | les 14 migrations et leur journal |
 | `src/`, `tsconfig*.json` | requis par les scripts (`seed`, `automations`) lancés via `tsx` |
 | `scripts/` | dont `migrate.mjs`, le migrateur qui n'utilise pas WebAssembly |
 | `server.js` | point d'entrée Passenger |
@@ -164,9 +164,20 @@ main, le troisième s'installe depuis le panneau.
 
 1. Toujours dans le panneau Node.js, onglet **Exécuter les commandes Node.js**
    (disponible une fois Node.js activé) → `npm run db:migrate:node`.
-   La sortie doit se terminer par **« migrations appliquées : 13 »**. Chaque
-   migration est une transaction : un échec ne laisse rien à moitié, on corrige
-   et on relance.
+   La sortie doit se terminer par **« migrations appliquées : 14 »** et
+   **46 tables**. Chaque migration est une transaction : un échec ne laisse
+   rien à moitié, on corrige et on relance.
+
+   Le migrateur annonce sa cible au démarrage (`🎯 cible : …`) et refuse une
+   base distante non confirmée. Sur le serveur, la base est en `localhost` :
+   il s'exécute sans rien de plus. Depuis un poste de travail, il faudrait
+   `--distant` — garde-fou volontaire, la variable `DATABASE_URL_MIGRATION`
+   du `.env` de développement pointant vers la production.
+
+   Si la base a déjà été migrée par le migrateur standard de Drizzle, le suivi
+   laissé dans le schéma `drizzle` est repris automatiquement au premier
+   passage (ligne `↻ suivi repris…`) : les migrations déjà appliquées ne sont
+   pas rejouées.
 2. **Redémarrer l'application**.
 3. Ouvrir `https://<domaine>/api/health` : doit répondre `200`.
 4. Si le site ne répond pas : même onglet → `npm run check:build`, qui dit ce
