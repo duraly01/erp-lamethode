@@ -6,8 +6,12 @@ l'hébergement cPanel est abandonné, le nouveau serveur est un Plesk
 
 Sans terminal, la méthode est celle qu'on connaît déjà : **on compile ici, on
 dépose une archive, on clique dans le panneau.** Le `server.js` écrit pour
-Passenger du temps de cPanel resservira tel quel — Plesk fait tourner les
-applications Node.js avec le même Passenger.
+Passenger du temps de cPanel resservira — Plesk fait tourner les applications
+Node.js avec le même Passenger — mais il a dû apprendre, en octobre, à réparer
+les liens de Turbopack (§ 7.1).
+
+> **En service depuis le 10 octobre 2026.** Les pièges rencontrés lors de la
+> mise en service sont au § 7 : à lire avant tout nouveau déploiement.
 
 Bonne nouvelle par rapport à cPanel : ce serveur a PostgreSQL 14, Node 22, les
 tâches planifiées et un onglet d'exécution de commandes. Tout ce qui manquait
@@ -158,7 +162,9 @@ main, le troisième s'installe depuis le panneau.
 
    Les secrets peuvent aussi être posés ici, dans *Variables d'environnement
    personnalisées*, plutôt que dans un fichier `.env` — au choix, mais pas les
-   deux.
+   deux : les variables du panneau **priment** sur `.env`, et une valeur
+   périmée dans l'un masque la bonne dans l'autre (§ 7.2). En pratique,
+   `DATABASE_URL` vit dans `.env` seul.
 
 ## 3. Migrer et démarrer
 
@@ -294,7 +300,111 @@ Comme au document 21, et toujours à la main dans l'application :
 ## 6. Ce qui reste à savoir sur ce serveur
 
 - **Aucun scan de sécurité dynamique** n'a été fait (outillage absent du poste).
-- **Le domaine est marqué « non protégé » : il n'a pas encore de certificat.**
-  À émettre avant la mise en service — Let's Encrypt est intégré à Plesk, c'est
-  l'affaire de deux clics. Ce n'est pas cosmétique : `AUTH_URL` doit être en
-  `https://`, et les cookies de session d'Auth.js sont refusés en clair.
+- ~~Le domaine n'a pas de certificat~~ — **émis le 10 octobre 2026** (Let's
+  Encrypt, `erp.lamethode.cm` seul, validation HTTP), renouvelé
+  automatiquement 30 jours avant l'échéance. Il ne peut être émis qu'une fois
+  le DNS basculé : Let's Encrypt vérifie que le nom pointe sur ce serveur.
+
+## 7. Les pièges de la mise en service — 10 et 11 octobre 2026
+
+Chacun a coûté un diagnostic. Aucun n'est propre à ce serveur : ils
+reviendront à chaque déploiement si on les oublie.
+
+### 7.1 Les liens de Turbopack, cassés par une archive faite sous Windows
+
+**Symptôme.** `/login` s'affiche (page précalculée), mais toute page qui touche
+la base répond `500 Internal Server Error` en texte brut — `/api/health`
+compris, alors que cette route rattrape les erreurs de base et devrait
+répondre `{"ok":false}`. Le plantage a donc lieu au chargement du code.
+
+**Cause.** Next 16 (Turbopack) charge les paquets externes (`pg`, `pdfkit`,
+`rimraf`) par un alias haché, `.next/node_modules/pg-587764f78a6c7a9c`, lien
+symbolique vers `node_modules/pg`. Sous Windows, ce lien est écrit en chemin
+**absolu** (`C:/Users/…/node_modules/pg`). Sur le serveur Linux il ne mène
+nulle part : `Cannot find package 'pg-587764f78a6c7a9c'`.
+
+**Correction, désormais automatique.** `server.js` relit au démarrage les
+traces du build (`.next/server/**/*.nft.json`) et le contenu de
+`.next/node_modules`, puis recrée en relatif (`../../node_modules/<paquet>`)
+chaque lien cassé. Un lien sain n'est pas touché ; un paquet absent de
+`node_modules` est signalé (« lancer NPM install »), jamais inventé. Les
+hachages changeant à chaque build, rien n'est codé en dur. Testé sous Linux
+(Node 22) : liens absents, cassés, sains, paquet à portée `@scope`, paquet
+manquant.
+
+À la main, si besoin (onglet *Exécuter les commandes Node.js*) :
+
+```text
+exec -- node -e "const fs=require('fs'),path=require('path');const d='.next/node_modules';for(const e of fs.readdirSync(d)){const pkg=e.replace(/-[0-9a-f]{16}$/,'');const p=path.join(d,e);fs.rmSync(p,{force:true});fs.symlinkSync(path.join('..','..','node_modules',pkg),p,'dir');console.log(e,'->',fs.realpathSync(p))}"
+```
+
+### 7.2 Les variables du panneau priment sur `.env`
+
+`server.js` charge `.env` avec `dotenv`, qui **n'écrase jamais** une variable
+déjà définie. Or Passenger injecte d'abord les *Variables d'environnement
+personnalisées* du panneau. Le 10 octobre, la `DATABASE_URL` du panneau —
+même hôte, même base — était refusée, tandis que celle de `.env` fonctionnait :
+`/api/health` répondait `{"ok":false}` en ligne et `{"ok":true}` en test. Elle
+a été retirée du panneau.
+
+Corollaire : les commandes lancées depuis l'onglet *Exécuter* ne reçoivent
+**pas** les variables du panneau, seulement `.env`. Un secret changé dans le
+panneau doit l'être aussi dans `.env`, sinon les scripts (`automations`,
+`migrate`) tournent avec l'ancien.
+
+### 7.3 Le panneau n'affiche que la sortie standard
+
+Les erreurs de Next partent sur `console.error`, que l'onglet *Exécuter*
+n'affiche pas, et le journal d'erreurs du domaine ne montre que les accès.
+Pour voir une erreur, rejouer l'application dans l'onglet en redirigeant :
+`console.error=(...a)=>console.log('ERR>',...a)` en tête du `node -e`.
+
+### 7.4 La page par défaut de Plesk masque l'application
+
+Plesk dépose un `index.html` dans la racine web (`public/`). nginx le sert
+avant de passer la main à Passenger : `/` affichait « Domain Default page ».
+Supprimé ; `public/` ne doit contenir que `.well-known` (l'application n'a pas
+de dossier `public` à elle).
+
+### 7.5 La bascule DNS
+
+- La zone `lamethode.cm` est chez **nitrowebhost** (ns3/ns4.nitrowebhost.co.uk),
+  ni chez Plesk ni chez le registraire.
+- Méthode suivie : TTL de `erp` abaissé de 14400 à **300** sans changer
+  l'adresse, attente de l'ancien TTL (4 h), puis adresse changée de
+  `95.217.84.98` à **`178.32.213.243`**, puis certificat.
+- **Ne jamais cliquer « Restaurer » dans l'éditeur de zone** : cela a remis le
+  TTL à 14400 et relancé l'attente de 4 h.
+- Vérifier sur les serveurs faisant autorité, pas seulement sur un résolveur
+  public (`Resolve-DnsName erp.lamethode.cm -Server ns3.nitrowebhost.co.uk`).
+- **Tester le nouveau serveur avant la bascule**, sans toucher au DNS :
+  `curl --resolve erp.lamethode.cm:443:178.32.213.243 https://erp.lamethode.cm/api/health`.
+  C'est ce test qui a révélé les pièges 7.1 à 7.4 alors que les utilisateurs
+  étaient encore sur l'ancien serveur.
+
+### 7.6 Changer un secret sans couper le service
+
+- Produire les secrets en **hexadécimal** (`randomBytes(24).toString('hex')`) :
+  un `@`, `:`, `/`, `+` ou `#` casse `DATABASE_URL`.
+- Mot de passe de la base : le changer dans Plesk (*Bases de données → Gestion
+  des utilisateurs*) **puis** dans `.env`, sans pause — l'ERP est coupé entre
+  les deux. **Lire le message de confirmation de Plesk** : le 11 octobre, un
+  premier changement ne s'est pas enregistré, et la base refusait le nouveau
+  mot de passe (`28P01`).
+- L'éditeur de code de Plesk **ajoute** au lieu de remplacer quand on colle un
+  fichier entier : ne modifier que la valeur, sur sa ligne.
+
+### 7.7 Supprimer un sous-domaine supprime sa racine
+
+Plesk efface le répertoire de la racine du sous-domaine. Le sous-domaine de
+test `erp2` pointait sur `/erp.lamethode.cm/public` : le supprimer tel quel
+aurait effacé l'application. Changer sa racine d'abord, puis supprimer. (Le
+test par `erp2` était de toute façon voué à l'échec : Plesk refuse deux
+applications Node.js sur la même racine.)
+
+### 7.8 La corbeille
+
+Ce Plesk n'a pas de bouton « Corbeille » : les fichiers supprimés vont dans le
+dossier `.trash` du *Répertoire principal*, qu'il faut vider à la main. Les
+dumps de reprise (données des 64 contribuables) y sont restés jusqu'au
+11 octobre.
